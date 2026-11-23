@@ -41,7 +41,7 @@ interface Props {
   onClose: () => void;
 }
 
-const AUDIO_KEY = "reelcut.audio";
+const AUDIO_KEY = "clipstudio.audio";
 function loadAudio(): { volume: number; muted: boolean } {
   try {
     const v = JSON.parse(localStorage.getItem(AUDIO_KEY) ?? "{}");
@@ -179,7 +179,7 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
 
   useEffect(() => {
     getCurrentWindow()
-      .setTitle(`${dirty ? "● " : ""}${project.name} — ReelCut`)
+      .setTitle(`${dirty ? "● " : ""}${project.name} — ClipStudio`)
       .catch(() => {});
   }, [project.name, dirty]);
 
@@ -360,13 +360,13 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
       let target = path;
       if (!target || saveAs) {
         const dir = await api.projectsDir().catch(() => null);
-        const file = `${projectRef.current.name.replace(/[\\/:*?"<>|]/g, "_")}.reelcut`;
+        const file = `${projectRef.current.name.replace(/[\\/:*?"<>|]/g, "_")}.clipstudio`;
         const sel = await save({
           defaultPath: dir ? joinPath(dir, file) : file,
-          filters: [{ name: "Proyecto ReelCut", extensions: ["reelcut"] }],
+          filters: [{ name: "Proyecto ClipStudio", extensions: ["clipstudio"] }],
         });
         if (!sel) return false;
-        target = sel.endsWith(".reelcut") ? sel : `${sel}.reelcut`;
+        target = sel.endsWith(".clipstudio") ? sel : `${sel}.clipstudio`;
       }
       try {
         await api.saveText(target, JSON.stringify(projectRef.current, null, 2));
@@ -393,14 +393,14 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
   async function close() {
     if (dirty) {
       const ok = await ask("Hay cambios sin guardar. ¿Salir de todos modos?", {
-        title: "ReelCut",
+        title: "ClipStudio",
         kind: "warning",
         okLabel: "Salir sin guardar",
         cancelLabel: "Cancelar",
       });
       if (!ok) return;
     }
-    getCurrentWindow().setTitle("ReelCut").catch(() => {});
+    getCurrentWindow().setTitle("ClipStudio").catch(() => {});
     onClose();
   }
 

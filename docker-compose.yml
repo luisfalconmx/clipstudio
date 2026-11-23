@@ -1,8 +1,9 @@
+name: clipstudio
 services:
   dev:
     build:
       context: ./docker
-    image: reelcut-dev
+    image: clipstudio-dev
     working_dir: /app
     volumes:
       - .:/app
@@ -10,6 +11,7 @@ services:
       - cargo_registry:/usr/local/cargo/registry
       - cargo_target:/app/src-tauri/target
       - xwin_cache:/xwin-cache
+      - pnpm_store:/pnpm-store
     ports:
       - "1420:1420"
 
@@ -18,3 +20,4 @@ volumes:
   cargo_registry:
   cargo_target:
   xwin_cache:
+  pnpm_store:

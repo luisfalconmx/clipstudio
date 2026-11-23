@@ -42,7 +42,7 @@ pub fn locate(base: &str) -> Option<PathBuf> {
 
 pub fn command(base: &str) -> Result<Command, String> {
     let bin = locate(base).ok_or_else(|| {
-        format!("No se encontró {base}. Coloca {} junto a ReelCut o agrégalo al PATH.", exe_name(base))
+        format!("No se encontró {base}. Coloca {} junto a ClipStudio o agrégalo al PATH.", exe_name(base))
     })?;
     let mut cmd = Command::new(bin);
     cmd.stdin(Stdio::null());
@@ -299,7 +299,7 @@ pub fn write_metadata(
 pub fn rewrite_in_place<F: FnOnce(&Path) -> Result<(), String>>(src: &Path, f: F) -> Result<(), String> {
     let stem = src.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
     let ext = src.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
-    let tmp = src.with_file_name(format!("{stem}.reelcut-tmp.{ext}"));
+    let tmp = src.with_file_name(format!("{stem}.clipstudio-tmp.{ext}"));
     if let Err(e) = f(&tmp) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
@@ -320,7 +320,7 @@ pub fn list_videos(dir: &Path, recursive: bool, out: &mut Vec<PathBuf>) {
     for e in entries {
         let p = e.path();
         let name = e.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') || name.contains(".reelcut-tmp.") {
+        if name.starts_with('.') || name.contains(".clipstudio-tmp.") {
             continue;
         }
         if p.is_dir() {

@@ -256,7 +256,7 @@ fn cancel_render(state: State<'_, render::RenderState>) {
     render::cancel(&state);
 }
 
-/// Carpeta por defecto de proyectos: %USERPROFILE%\Videos\Reelcut
+/// Carpeta por defecto de proyectos: %USERPROFILE%\Videos\ClipStudio
 fn projects_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app
         .path()
@@ -264,7 +264,7 @@ fn projects_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
         .or_else(|_| app.path().document_dir())
         .or_else(|_| app.path().home_dir())
         .map_err(|e| e.to_string())?;
-    let d = base.join("Reelcut");
+    let d = base.join("ClipStudio");
     std::fs::create_dir_all(&d).map_err(|e| format!("No se pudo crear {}: {e}", d.display()))?;
     Ok(d)
 }
@@ -291,10 +291,10 @@ fn new_project_path(app: AppHandle, name: String, dir: Option<String>) -> Result
         None => projects_dir_path(&app)?,
     };
     let base = sanitize_name(&name);
-    let mut p = d.join(format!("{base}.reelcut"));
+    let mut p = d.join(format!("{base}.clipstudio"));
     let mut n = 2;
     while p.exists() {
-        p = d.join(format!("{base} ({n}).reelcut"));
+        p = d.join(format!("{base} ({n}).clipstudio"));
         n += 1;
     }
     Ok(p.to_string_lossy().to_string())
@@ -309,14 +309,14 @@ struct ProjectEntry {
     modified: u64,
 }
 
-/// Proyectos .reelcut de la carpeta por defecto, más recientes primero.
+/// Proyectos .clipstudio de la carpeta por defecto, más recientes primero.
 #[tauri::command]
 fn list_projects(app: AppHandle) -> Result<Vec<ProjectEntry>, String> {
     let d = projects_dir_path(&app)?;
     let mut out = Vec::new();
     for e in std::fs::read_dir(&d).map_err(|e| e.to_string())?.flatten() {
         let p = e.path();
-        if p.extension().map(|x| x == "reelcut").unwrap_or(false) {
+        if p.extension().map(|x| x == "clipstudio").unwrap_or(false) {
             let modified = e
                 .metadata()
                 .and_then(|m| m.modified())
@@ -424,7 +424,7 @@ pub fn run() {
             take_startup_paths
         ])
         .run(tauri::generate_context!())
-        .expect("error al iniciar ReelCut");
+        .expect("error al iniciar ClipStudio");
 }
 
 #[cfg(test)]

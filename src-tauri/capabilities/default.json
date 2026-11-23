@@ -19,10 +19,10 @@
       "identifier": "opener:allow-open-path",
       "allow": [
         {
-          "path": "$VIDEO/Reelcut"
+          "path": "$VIDEO/ClipStudio"
         },
         {
-          "path": "$VIDEO/Reelcut/**"
+          "path": "$VIDEO/ClipStudio/**"
         }
       ]
     }

@@ -1,19 +1,19 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ReelCut",
-  "version": "0.1.0",
-  "identifier": "com.reelcut.app",
+  "productName": "ClipStudio",
+  "version": "../package.json",
+  "identifier": "com.clipstudio.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
         "label": "main",
-        "title": "ReelCut",
+        "title": "ClipStudio",
         "width": 1400,
         "height": 860,
         "minWidth": 1100,

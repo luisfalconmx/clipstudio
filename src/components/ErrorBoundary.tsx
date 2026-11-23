@@ -27,7 +27,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("ReelCut: error de interfaz", error, info.componentStack);
+    console.error("ClipStudio: error de interfaz", error, info.componentStack);
   }
 
   render() {

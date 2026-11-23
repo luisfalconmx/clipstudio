@@ -1,11 +1,11 @@
-# ReelCut
+# ClipStudio
 
-Editor de video MVP para Windows 11, del estilo de Filmora. Está hecho con **Tauri 2 + Vite + React 19 + Tailwind CSS 4 + HeroUI v3**, y usa **ffmpeg** para el procesamiento.
+Editor de video para Windows 11, del estilo de Filmora. Está hecho con **Tauri 2 + Vite + React 19 + Tailwind CSS 4 + HeroUI v3**, y usa **ffmpeg** para el procesamiento.
 
 ## Funciones
 
-- **Proyectos**: archivos `.reelcut` (JSON). Se guardan por defecto en `%USERPROFILE%\Videos\Reelcut`, carpeta que crea el instalador (y la app al iniciar, si no existe). Un proyecto nuevo se guarda ahí al crearlo, y Ctrl+S guarda sin preguntar (Ctrl+Shift+S para *guardar como*). En el inicio se listan los proyectos de esa carpeta.
-- **Menú contextual del Explorador**: clic derecho en un video → **"Abrir como proyecto en ReelCut"**. En Windows 11 aparece dentro de *Mostrar más opciones* (o con Shift+F10). Si seleccionas varios videos, se crea un solo proyecto con todos en la línea de tiempo. Si ReelCut ya está abierto, se usa la misma ventana.
+- **Proyectos**: archivos `.clipstudio` (JSON). Se guardan por defecto en `%USERPROFILE%\Videos\ClipStudio`, carpeta que crea el instalador (y la app al iniciar, si no existe). Un proyecto nuevo se guarda ahí al crearlo, y Ctrl+S guarda sin preguntar (Ctrl+Shift+S para *guardar como*). En el inicio se listan los proyectos de esa carpeta.
+- **Menú contextual del Explorador**: clic derecho en un video → **"Abrir como proyecto en ClipStudio"**. En Windows 11 aparece dentro de *Mostrar más opciones* (o con Shift+F10). Si seleccionas varios videos, se crea un solo proyecto con todos en la línea de tiempo. Si ClipStudio ya está abierto, se usa la misma ventana.
 - **Medios**: importar MP4, MOV, MKV, WebM o AVI, ya sea con el botón o arrastrando desde el Explorador. Desde la biblioteca, un medio se arrastra a la línea de tiempo en la posición que quieras (o con doble clic se agrega al final).
 - **Línea de tiempo**:
   - Recortar arrastrando los bordes del clip.
@@ -23,7 +23,7 @@ Editor de video MVP para Windows 11, del estilo de Filmora. Está hecho con **Ta
 
 ## Desarrollo, todo en Docker (WSL2)
 
-No hace falta instalar Node, Rust ni ffmpeg en Windows ni en WSL. Basta con Docker Desktop.
+No hace falta instalar Node, pnpm, Rust ni ffmpeg en Windows ni en WSL. Basta con Docker Desktop.
 
 ### Instalador de Windows
 
@@ -33,8 +33,8 @@ No hace falta instalar Node, Rust ni ffmpeg en Windows ni en WSL. Basta con Dock
 
 Esto genera dos archivos en `release/`:
 
-- `ReelCut_0.1.0_x64-setup.exe`: el instalador NSIS, que ya incluye `ffmpeg.exe` y `ffprobe.exe`.
-- `ReelCut-portable.exe`: el ejecutable suelto. Necesita `ffmpeg.exe` y `ffprobe.exe` en la misma carpeta.
+- `ClipStudio_0.1.0_x64-setup.exe`: el instalador NSIS, que ya incluye `ffmpeg.exe` y `ffprobe.exe`.
+- `ClipStudio-portable.exe`: el ejecutable suelto. Necesita `ffmpeg.exe` y `ffprobe.exe` en la misma carpeta.
 
 Para abrir la carpeta desde WSL: `explorer.exe release`.
 
@@ -44,12 +44,12 @@ Para abrir la carpeta desde WSL: `explorer.exe release`.
 ./scripts/dev-windows.sh
 ```
 
-El script compila `release/dev/ReelCut-dev.exe` (versión debug), que carga la UI desde `http://localhost:1420`, y arranca Vite en el contenedor. Abre ese `.exe` desde Windows y edita el código en `src/`: la UI se recarga sola. Solo hay que volver a correr el script si cambias código Rust (`src-tauri/`).
+El script compila `release/dev/ClipStudio-dev.exe` (versión debug), que carga la UI desde `http://localhost:1420`, y arranca Vite en el contenedor. Abre ese `.exe` desde Windows y edita el código en `src/`: la UI se recarga sola. Solo hay que volver a correr el script si cambias código Rust (`src-tauri/`).
 
 ### Comandos sueltos
 
 ```bash
-docker compose run --rm dev npm run build                       # typecheck + build del frontend
+docker compose run --rm dev pnpm build                          # typecheck + build del frontend
 docker compose run --rm dev bash -c "cd src-tauri && cargo xwin check --target x86_64-pc-windows-msvc"
 ```
 
@@ -57,7 +57,7 @@ La compilación cruzada usa `cargo-xwin`, que descarga el SDK de Windows y lo gu
 
 ## Instalador
 
-El instalador NSIS ejecuta [src-tauri/windows/hooks.nsh](src-tauri/windows/hooks.nsh), que crea `Videos\Reelcut` y registra el verbo del menú contextual en `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell` (sin permisos de administrador). Al desinstalar se quita el verbo, pero la carpeta de proyectos se conserva.
+El instalador NSIS ejecuta [src-tauri/windows/hooks.nsh](src-tauri/windows/hooks.nsh), que crea `Videos\ClipStudio` y registra el verbo del menú contextual en `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell` (sin permisos de administrador). Al desinstalar se quita el verbo, pero la carpeta de proyectos se conserva.
 
 ## Estructura
 

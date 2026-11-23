@@ -46,7 +46,7 @@ export default function Home({ ffmpegVersion, onOpenProject, onMetadata }: Props
   async function openDialog() {
     const path = await open({
       defaultPath: projectsDir ?? undefined,
-      filters: [{ name: "Proyecto ReelCut", extensions: ["reelcut"] }],
+      filters: [{ name: "Proyecto ClipStudio", extensions: ["clipstudio"] }],
     });
     if (typeof path === "string") openPath(path);
   }
@@ -72,7 +72,7 @@ export default function Home({ ffmpegVersion, onOpenProject, onMetadata }: Props
 
   const otherRecents = projectsDir ? recents.filter((r) => !sameDir(r.path, projectsDir)) : recents;
   const location = targetDir ?? projectsDir;
-  const fileName = `${(name.trim() || "Proyecto").replace(/[\\/:*?"<>|]/g, "_")}.reelcut`;
+  const fileName = `${(name.trim() || "Proyecto").replace(/[\\/:*?"<>|]/g, "_")}.clipstudio`;
 
   return (
     <div className="flex h-full flex-col overflow-auto">
@@ -82,7 +82,7 @@ export default function Home({ ffmpegVersion, onOpenProject, onMetadata }: Props
             <Video className="size-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">ReelCut</h1>
+            <h1 className="text-3xl font-bold tracking-tight">ClipStudio</h1>
             <p className="text-sm text-muted">Edita, une y exporta tus videos en 1080p, 2K o 4K a 60 fps.</p>
           </div>
         </header>
@@ -101,7 +101,7 @@ export default function Home({ ffmpegVersion, onOpenProject, onMetadata }: Props
           <ActionCard
             icon={<FolderOpen className="size-6" />}
             title="Abrir proyecto"
-            desc="Continúa un proyecto .reelcut guardado."
+            desc="Continúa un proyecto .clipstudio guardado."
             onPress={openDialog}
           />
           <ActionCard

@@ -1,11 +1,11 @@
 [package]
-name = "reelcut"
+name = "clipstudio"
 version = "0.1.0"
-description = "ReelCut - editor de video sencillo"
+description = "ClipStudio - editor de video sencillo"
 edition = "2021"
 
 [lib]
-name = "reelcut_lib"
+name = "clipstudio_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

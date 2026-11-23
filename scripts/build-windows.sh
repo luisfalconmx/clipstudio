@@ -6,12 +6,12 @@ cd "$(dirname "$0")/.."
 docker compose build dev
 docker compose run --rm dev bash -c '
   set -e
-  npm ci --no-audit --no-fund
+  pnpm install --frozen-lockfile
   ./scripts/fetch-ffmpeg-win.sh
-  npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
-  mkdir -p release
+  pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
+  mkdir -p release && rm -f release/*.exe
   cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe release/
-  cp src-tauri/target/x86_64-pc-windows-msvc/release/reelcut.exe release/ReelCut-portable.exe
+  cp src-tauri/target/x86_64-pc-windows-msvc/release/clipstudio.exe release/ClipStudio-portable.exe
 '
 echo
 echo "Listo. Instalador en: $(pwd)/release"

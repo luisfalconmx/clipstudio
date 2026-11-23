@@ -92,7 +92,7 @@ export function formatTime(sec: number, withFrames = false): string {
   return `${base}.${pad(cs)}`;
 }
 
-const RECENTS_KEY = "reelcut.recents";
+const RECENTS_KEY = "clipstudio.recents";
 
 export function getRecents(): { path: string; name: string; at: number }[] {
   try {
@@ -120,7 +120,7 @@ export function removeRecent(path: string) {
   }
 }
 
-/** Crea y guarda de inmediato un proyecto nuevo (por defecto en Videos\\Reelcut). */
+/** Crea y guarda de inmediato un proyecto nuevo (por defecto en Videos\\ClipStudio). */
 export async function createProjectFile(name: string, dir: string | null = null): Promise<{ project: Project; path: string }> {
   const project = newProject(name);
   const path = await api.newProjectPath(name, dir);

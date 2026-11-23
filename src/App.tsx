@@ -25,7 +25,7 @@ export default function App() {
     setView({ name: "editor", project, path, importPaths, key: Date.now() });
   };
 
-  // "Abrir como proyecto en ReelCut" desde el Explorador: al iniciar o con la app ya abierta.
+  // "Abrir como proyecto en ClipStudio" desde el Explorador: al iniciar o con la app ya abierta.
   // Explorer lanza un proceso por archivo seleccionado: se agrupan en un solo proyecto.
   useEffect(() => {
     let pending: string[] = [];
@@ -36,7 +36,7 @@ export default function App() {
       if (!paths.length) return;
       if (viewRef.current.name === "editor" && editorDirty.current) {
         const ok = await ask("El proyecto actual tiene cambios sin guardar. ¿Abrir el nuevo proyecto de todos modos?", {
-          title: "ReelCut",
+          title: "ClipStudio",
           kind: "warning",
           okLabel: "Abrir nuevo",
           cancelLabel: "Cancelar",
@@ -84,7 +84,7 @@ export default function App() {
       <Toast.Provider placement="bottom end" />
       {ffmpeg && (!ffmpeg.ffmpeg || !ffmpeg.ffprobe) && (
         <div className="bg-danger px-4 py-2 text-sm text-danger-foreground">
-          No se encontró ffmpeg/ffprobe. Coloca <b>ffmpeg.exe</b> y <b>ffprobe.exe</b> junto a ReelCut.exe (el instalador
+          No se encontró ffmpeg/ffprobe. Coloca <b>ffmpeg.exe</b> y <b>ffprobe.exe</b> junto a ClipStudio.exe (el instalador
           ya los incluye).
         </div>
       )}

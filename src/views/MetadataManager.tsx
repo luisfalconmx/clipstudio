@@ -10,8 +10,8 @@ import { api, baseName, errMsg, VIDEO_EXTS } from "../lib/api";
 type Tab = "single" | "folder";
 
 // La carpeta vinculada y su último escaneo se guardan hasta que el usuario la desvincule.
-const STORE_KEY = "reelcut.meta.folder";
-const TAB_KEY = "reelcut.meta.tab";
+const STORE_KEY = "clipstudio.meta.folder";
+const TAB_KEY = "clipstudio.meta.tab";
 const EMPTY: FolderState = { folder: null, recursive: false, items: [], scanning: false };
 
 function loadFolder(): FolderState {

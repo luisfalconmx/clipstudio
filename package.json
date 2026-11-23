@@ -1,5 +1,5 @@
 {
-  "name": "reelcut",
+  "name": "clipstudio",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "version": "node scripts/sync-version.mjs && git add src-tauri/Cargo.toml src-tauri/Cargo.lock"
   },
   "dependencies": {
     "@gravity-ui/icons": "^2.23.1",
@@ -28,5 +29,6 @@
     "tailwindcss": "^4.3.5",
     "typescript": "^5.9.3",
     "vite": "^8.3.8"
-  }
+  },
+  "packageManager": "pnpm@12.21.0"
 }
