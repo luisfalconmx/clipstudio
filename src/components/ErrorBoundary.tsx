@@ -35,7 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
     return (
       <div className="flex h-full items-center justify-center p-8">
-        <div className="flex max-w-xl flex-col items-center gap-4 rounded-3xl bg-surface p-8 text-center">
+        <div className="glass flex max-w-xl flex-col items-center gap-4 rounded-3xl p-8 text-center">
           <TriangleExclamation className="size-10 text-danger" />
           <h2 className="text-xl font-semibold">Algo salió mal</h2>
           <p className="text-sm text-muted">

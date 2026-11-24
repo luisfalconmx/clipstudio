@@ -40,7 +40,7 @@ pub fn start(app: AppHandle, state: &RenderState, job: RenderJob) -> Result<(), 
             return Err("Ya hay un renderizado en curso.".into());
         }
     }
-    let total: f64 = job.clips.iter().map(|c| (c.end - c.start).max(0.0)).sum();
+    let total: f64 = crate::args::output_duration(&job);
     let args = build_args(&job)?;
     let mut cmd = ffmpeg::command("ffmpeg")?;
     cmd.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());

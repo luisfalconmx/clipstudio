@@ -7,10 +7,10 @@ docker compose build dev
 docker compose run --rm dev bash -c '
   set -e
   pnpm install --frozen-lockfile
-  ./scripts/fetch-ffmpeg-win.sh
   pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
   mkdir -p release && rm -f release/*.exe
-  cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe release/
+  V=$(node -p "require(\"./package.json\").version")
+  cp "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ClipStudio_${V}_x64-setup.exe" release/
   cp src-tauri/target/x86_64-pc-windows-msvc/release/clipstudio.exe release/ClipStudio-portable.exe
 '
 echo

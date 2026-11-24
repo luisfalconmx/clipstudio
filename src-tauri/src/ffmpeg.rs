@@ -20,10 +20,19 @@ fn exe_name(base: &str) -> String {
     }
 }
 
-/// Busca el binario junto al ejecutable (sidecar empaquetado por Tauri),
-/// en una carpeta `ffmpeg/` junto al ejecutable, o en el PATH.
+/// Carpeta donde ClipStudio instala ffmpeg (%LOCALAPPDATA%\com.clipstudio.app\ffmpeg).
+pub static TOOLS_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Busca el binario: junto al ejecutable, en la carpeta de componentes de
+/// ClipStudio (descargada una sola vez) o en el PATH del sistema.
 pub fn locate(base: &str) -> Option<PathBuf> {
     let name = exe_name(base);
+    if let Some(dir) = TOOLS_DIR.get() {
+        let p = dir.join("bin").join(&name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             for candidate in [dir.join(&name), dir.join("ffmpeg").join(&name), dir.join("bin").join(&name)] {
@@ -193,14 +202,19 @@ pub fn probe(path: &str) -> Result<MediaInfo, String> {
 
 /// Extrae un fotograma en `time` segundos. Si `max_width` es Some, lo reduce.
 pub fn extract_frame(src: &str, time: f64, out: &Path, max_width: Option<u32>) -> Result<(), String> {
+    extract_frame_vf(src, time, out, max_width.map(|w| format!("scale='min({w},iw)':-2")))
+}
+
+/// Extrae un fotograma aplicando un filtro de video opcional (p. ej. encuadre + zoom).
+pub fn extract_frame_vf(src: &str, time: f64, out: &Path, vf: Option<String>) -> Result<(), String> {
     let mut cmd = command("ffmpeg")?;
     cmd.args(["-y", "-hide_banner", "-loglevel", "error"])
         .args(["-ss", &format!("{:.3}", time.max(0.0))])
         .arg("-i")
         .arg(src)
         .args(["-map", "0:V:0", "-frames:v", "1"]);
-    if let Some(w) = max_width {
-        cmd.args(["-vf", &format!("scale='min({w},iw)':-2")]);
+    if let Some(vf) = &vf {
+        cmd.args(["-vf", vf]);
     }
     if out.extension().map(|e| e == "jpg").unwrap_or(false) {
         cmd.args(["-q:v", "3"]);
@@ -210,7 +224,7 @@ pub fn extract_frame(src: &str, time: f64, out: &Path, max_width: Option<u32>) -
     if !out.is_file() {
         // Si el tiempo cae justo al final, ffmpeg no produce nada: reintenta un poco antes.
         if time > 0.2 {
-            return extract_frame(src, time - 0.2, out, max_width);
+            return extract_frame_vf(src, time - 0.2, out, vf);
         }
         return Err("No se pudo extraer el fotograma.".into());
     }

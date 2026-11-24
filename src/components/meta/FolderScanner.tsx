@@ -19,6 +19,7 @@ import {
 } from "@gravity-ui/icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, fileUrl, formatBytes, limiter, type ScanItem } from "../../lib/api";
+import { DropZone } from "../ui/Shell";
 import { formatTime } from "../../lib/project";
 
 export interface FolderState {
@@ -77,23 +78,21 @@ export default function FolderScanner({ state, onScan, onEdit, onUnlink }: Props
 
   if (!folder) {
     return (
-      <div className="flex h-full items-center justify-center p-8">
-        <button
-          onClick={pickFolder}
-          className="flex h-72 w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-border text-muted hover:bg-surface"
-        >
-          <FolderOpen className="size-10" />
-          <span className="text-lg font-medium text-foreground">Elige una carpeta para revisar</span>
-          <span className="text-sm">Verás qué videos tienen portada y podrás editar su metadata</span>
-        </button>
-      </div>
+      <DropZone
+        icon={<FolderOpen className="size-9" />}
+        title="Revisa una carpeta completa"
+        desc="Verás todos tus videos con su portada, título y estado. La carpeta se queda vinculada hasta que la desvincules."
+        cta="Elegir carpeta"
+        onPress={pickFolder}
+      />
     );
   }
 
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2 rounded-xl bg-surface px-3 py-1.5" title={folder}>
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/[0.06] bg-black/20 px-4 py-3 backdrop-blur">
+        <div className="glass flex min-w-0 items-center gap-2 rounded-xl px-3 py-1.5" title={folder}>
           <Folder className="size-4 shrink-0 text-accent" />
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="text-[10px] uppercase tracking-wider text-muted">Carpeta vinculada</span>
@@ -240,7 +239,7 @@ function VideoCard({ item, onEdit }: { item: ScanItem; onEdit: () => void }) {
   return (
     <div
       ref={ref}
-      className="group flex flex-col overflow-hidden rounded-2xl bg-surface ring-accent transition hover:-translate-y-0.5 hover:ring-2"
+      className="glass group flex flex-col overflow-hidden rounded-2xl ring-red-600/70 transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_-20px_rgba(231,0,11,0.45)] hover:ring-2"
     >
       <button
         className="relative aspect-video w-full overflow-hidden bg-black outline-none"

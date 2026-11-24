@@ -4,7 +4,7 @@ Editor de video para Windows 11, del estilo de Filmora. Está hecho con **Tauri 
 
 ## Funciones
 
-- **Proyectos**: archivos `.clipstudio` (JSON). Se guardan por defecto en `%USERPROFILE%\Videos\ClipStudio`, carpeta que crea el instalador (y la app al iniciar, si no existe). Un proyecto nuevo se guarda ahí al crearlo, y Ctrl+S guarda sin preguntar (Ctrl+Shift+S para *guardar como*). En el inicio se listan los proyectos de esa carpeta.
+- **Proyectos**: archivos `.clipstudio` (JSON) guardados en la carpeta de datos de la app (`%APPDATA%\com.clipstudio.app\projects`). Un proyecto nuevo se guarda ahí al crearlo, y Ctrl+S guarda sin preguntar. Si había proyectos en la ubicación anterior (`Videos\ClipStudio`), se mueven solos. Se pueden eliminar desde el inicio: van a la Papelera de reciclaje. "Abrir" acepta un `.clipstudio`, o uno o varios videos que se abren como proyecto nuevo.
 - **Menú contextual del Explorador**: clic derecho en un video → **"Abrir como proyecto en ClipStudio"**. En Windows 11 aparece dentro de *Mostrar más opciones* (o con Shift+F10). Si seleccionas varios videos, se crea un solo proyecto con todos en la línea de tiempo. Si ClipStudio ya está abierto, se usa la misma ventana.
 - **Medios**: importar MP4, MOV, MKV, WebM o AVI, ya sea con el botón o arrastrando desde el Explorador. Desde la biblioteca, un medio se arrastra a la línea de tiempo en la posición que quieras (o con doble clic se agrega al final).
 - **Línea de tiempo**:
@@ -14,9 +14,12 @@ Editor de video para Windows 11, del estilo de Filmora. Está hecho con **Tauri 
   - Eliminar (`Supr`).
   - Deshacer (`Ctrl+Z`).
   - Zoom.
-  - Vista previa continua con `Espacio`, volumen y silencio (`M`), pantalla completa (`F` o doble clic; `Esc` para salir).
-- **Exportar**: 1080p, 1440p o 4K, a 60 o 120 fps, en horizontal o vertical. Códecs disponibles: H.264 y H.265 por CPU, o NVENC por GPU NVIDIA. Muestra el progreso y permite cancelar. Si los clips tienen otra relación de aspecto, se ajustan con barras negras.
-- **Portada (cover)**: captura el fotograma del cabezal a resolución completa, o elige una imagen. Se incrusta en el MP4 como `attached_pic`.
+  - Vista previa continua con `Espacio`, volumen y silencio (`M`), pantalla completa solo del video (`F` o doble clic; `Esc` para salir).
+  - **Transiciones** entre clips (disolver, fundido a negro/blanco, barridos, deslizar, círculo, radial, pixelado…), con duración ajustable. Se eligen en la pestaña Transiciones o con el botón de cada unión en la línea de tiempo; se renderizan con `xfade`/`acrossfade` de ffmpeg.
+  - **Zoom y encuadre por clip** (100–400 %), con anclaje a 9 posiciones, sliders y arrastre en la vista previa. Se amplía dentro del cuadro de salida, así que el video nunca sale del formato 16:9 (ni de 9:16 en vertical).
+- **Barra lateral izquierda** colapsable con pestañas: Medios, Encuadre, Transiciones, Portada, Metadatos y **Proyecto** (resolución, orientación, fps, calidad y códec; al importar el primer video se ajusta a su formato) (título, autor, descripción, etc. que se escriben en el MP4 exportado).
+- **Exportar**: nombre de archivo y ruta de exportación editables (por defecto `%USERPROFILE%\Videos`). 1080p, 1440p o 4K, a 60 o 120 fps, en horizontal o vertical. Códecs disponibles: H.264 y H.265 por CPU, o NVENC por GPU NVIDIA. Muestra el progreso y permite cancelar. Si los clips tienen otra relación de aspecto, se ajustan con barras negras.
+- **Portada (cover)**: captura el fotograma del cabezal con el mismo encuadre y zoom del video exportado, o elige una imagen. Se incrusta en el MP4 como `attached_pic`.
 - **Metadata Manager** (desde la pantalla de inicio). Todo se hace **sin renderizar**: copia los streams y tarda segundos. Puede sobrescribir el original o guardar una copia.
   - **Editar un video**: metadata de video (título, autor/creador, fecha, género, tipo de video, copyright, descripción, sinopsis, comentario y datos de serie: serie, temporada, episodio, canal). También la portada: elegir un fotograma exacto con avance cuadro a cuadro, elegir una imagen o quitarla. Muestra la información técnica (códecs, resolución, bitrate, audio, subtítulos, capítulos y otras etiquetas).
   - **Revisar carpeta**: cuadrícula con las portadas de todos los videos de una carpeta (con subcarpetas opcionales), su estado, título y detalles. Se puede filtrar y buscar. La carpeta y su último escaneo se recuerdan, incluso al cerrar la app, hasta que pulses **Desvincular carpeta**. "Editar metadata" abre el mismo editor.
@@ -33,8 +36,8 @@ No hace falta instalar Node, pnpm, Rust ni ffmpeg en Windows ni en WSL. Basta co
 
 Esto genera dos archivos en `release/`:
 
-- `ClipStudio_0.1.0_x64-setup.exe`: el instalador NSIS, que ya incluye `ffmpeg.exe` y `ffprobe.exe`.
-- `ClipStudio-portable.exe`: el ejecutable suelto. Necesita `ffmpeg.exe` y `ffprobe.exe` en la misma carpeta.
+- `ClipStudio_<versión>_x64-setup.exe`: el instalador NSIS (≈3 MB). ffmpeg se descarga una sola vez, al primer uso.
+- `ClipStudio-portable.exe`: el ejecutable suelto. También descarga ffmpeg al primer uso.
 
 Para abrir la carpeta desde WSL: `explorer.exe release`.
 
@@ -57,7 +60,7 @@ La compilación cruzada usa `cargo-xwin`, que descarga el SDK de Windows y lo gu
 
 ## Instalador
 
-El instalador NSIS ejecuta [src-tauri/windows/hooks.nsh](src-tauri/windows/hooks.nsh), que crea `Videos\ClipStudio` y registra el verbo del menú contextual en `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell` (sin permisos de administrador). Al desinstalar se quita el verbo, pero la carpeta de proyectos se conserva.
+El instalador NSIS ejecuta [src-tauri/windows/hooks.nsh](src-tauri/windows/hooks.nsh), que registra el verbo del menú contextual en `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell` (sin permisos de administrador). Al desinstalar se quita el verbo; tus proyectos y ffmpeg se conservan.
 
 ## Estructura
 
@@ -73,12 +76,13 @@ src/
 src-tauri/src/
   lib.rs                  Comandos Tauri
   ffmpeg.rs               Localizar/ejecutar ffmpeg, probe, fotogramas, portada
+  setup_ffmpeg.rs         Descarga única de ffmpeg con verificación SHA-256
   args.rs                 Construcción del filtro de render (trim + scale/pad + fps + concat)
   render.rs               Proceso de render con progreso y cancelación
 ```
 
 ## Notas
 
-- ffmpeg se descarga de los builds de [BtbN](https://github.com/BtbN/FFmpeg-Builds) (GPL). Pesa bastante (~170 MB cada binario). Más adelante se puede cambiar por un build *shared* o *essentials*.
+- **ffmpeg no va dentro del instalador.** La primera vez que abres ClipStudio, descarga ffmpeg 9.0 (≈90 MB, builds GPL de [BtbN](https://github.com/BtbN/FFmpeg-Builds)), verifica su SHA-256 y lo instala en `%LOCALAPPDATA%\com.clipstudio.app\ffmpeg`. Las actualizaciones de la app no lo vuelven a descargar. Si ya tienes ffmpeg en el PATH, se usa ese.
 - La edición de metadata y portada solo funciona con MP4 y M4V. Los MOV, MKV, etc. aparecen en el listado como "solo lectura". Solo se escriben las etiquetas estándar de iTunes, que son las que leen Windows, VLC, Plex, etc.
 - La vista previa usa el decodificador de WebView2, así que reproduce bien H.264. Algunos HEVC o MKV podrían no previsualizarse aunque sí se rendericen.

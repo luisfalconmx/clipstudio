@@ -1,6 +1,7 @@
 mod args;
 mod ffmpeg;
 mod render;
+mod setup_ffmpeg;
 
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
@@ -99,11 +100,21 @@ async fn thumbnail(app: AppHandle, path: String, time: f64, width: Option<u32>) 
 }
 
 /// Captura un fotograma a resolución completa (para usarlo como portada).
+#[derive(serde::Deserialize)]
+struct FrameSpec {
+    width: u32,
+    height: u32,
+    #[serde(default)]
+    zoom: Option<args::Zoom>,
+}
+
 #[tauri::command]
-async fn capture_frame(app: AppHandle, path: String, time: f64) -> Result<String, String> {
+async fn capture_frame(app: AppHandle, path: String, time: f64, frame: Option<FrameSpec>) -> Result<String, String> {
     let out = dir(&app, "covers")?.join(unique_name("frame", "png"));
     blocking(move || {
-        ffmpeg::extract_frame(&path, time, &out, None)?;
+        // Con `frame`: mismo encuadre/zoom que el video exportado. Sin él: fotograma original.
+        let vf = frame.map(|f| args::framing_filter(f.width, f.height, &f.zoom));
+        ffmpeg::extract_frame_vf(&path, time, &out, vf)?;
         Ok(out.to_string_lossy().to_string())
     })
     .await
@@ -256,17 +267,59 @@ fn cancel_render(state: State<'_, render::RenderState>) {
     render::cancel(&state);
 }
 
-/// Carpeta por defecto de proyectos: %USERPROFILE%\Videos\ClipStudio
+/// Carpeta de proyectos: datos de la app (%APPDATA%\com.clipstudio.app\projects).
 fn projects_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .video_dir()
-        .or_else(|_| app.path().document_dir())
-        .or_else(|_| app.path().home_dir())
-        .map_err(|e| e.to_string())?;
-    let d = base.join("ClipStudio");
+    let d = app.path().app_data_dir().map_err(|e| e.to_string())?.join("projects");
     std::fs::create_dir_all(&d).map_err(|e| format!("No se pudo crear {}: {e}", d.display()))?;
     Ok(d)
+}
+
+/// Mueve los .clipstudio de la ubicación anterior (Videos\ClipStudio) a AppData.
+/// No toca ningún otro archivo; si la carpeta vieja queda vacía, se elimina.
+fn migrate_old_projects(app: &AppHandle) {
+    let (Ok(videos), Ok(new_dir)) = (app.path().video_dir(), projects_dir_path(app)) else { return };
+    let old = videos.join("ClipStudio");
+    let Ok(rd) = std::fs::read_dir(&old) else { return };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.extension().map(|x| x == "clipstudio").unwrap_or(false) {
+            let mut target = new_dir.join(e.file_name());
+            let mut n = 2;
+            while target.exists() {
+                let stem = p.file_stem().unwrap_or_default().to_string_lossy();
+                target = new_dir.join(format!("{stem} ({n}).clipstudio"));
+                n += 1;
+            }
+            if std::fs::rename(&p, &target).is_err() && std::fs::copy(&p, &target).is_ok() {
+                let _ = std::fs::remove_file(&p);
+            }
+        }
+    }
+    let _ = std::fs::remove_dir(&old); // solo si quedó vacía
+}
+
+/// Carpeta por defecto para exportar: %USERPROFILE%\Videos
+#[tauri::command]
+fn default_export_dir(app: AppHandle) -> Result<String, String> {
+    app.path()
+        .video_dir()
+        .or_else(|_| app.path().home_dir())
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn dir_exists(path: String) -> bool {
+    Path::new(&path).is_dir()
+}
+
+/// Descarga e instala ffmpeg (una sola vez). Devuelve el estado final.
+#[tauri::command]
+async fn install_ffmpeg(app: AppHandle) -> Result<FfmpegStatus, String> {
+    let dir = ffmpeg::TOOLS_DIR.get().cloned().ok_or("Carpeta de componentes no inicializada.")?;
+    let a = app.clone();
+    blocking(move || setup_ffmpeg::install(&a, &dir).map(|_| ())).await?;
+    ffmpeg_status().await
 }
 
 #[tauri::command]
@@ -306,7 +359,18 @@ struct ProjectEntry {
     path: String,
     name: String,
     clips: usize,
+    media: usize,
     modified: u64,
+    /// Duración total de la línea de tiempo en segundos.
+    duration: f64,
+    /// Portada del proyecto (si existe en disco).
+    cover: Option<String>,
+    /// Video + segundo para generar una vista previa si no hay portada.
+    preview_path: Option<String>,
+    preview_time: f64,
+    resolution: String,
+    fps: u32,
+    orientation: String,
 }
 
 /// Proyectos .clipstudio de la carpeta por defecto, más recientes primero.
@@ -328,19 +392,65 @@ fn list_projects(app: AppHandle) -> Result<Vec<ProjectEntry>, String> {
                 .ok()
                 .and_then(|t| serde_json::from_str(&t).ok())
                 .unwrap_or_default();
+            let clips = v["clips"].as_array().cloned().unwrap_or_default();
+            let media = v["media"].as_array().cloned().unwrap_or_default();
+            let duration: f64 = clips
+                .iter()
+                .map(|c| (c["out"].as_f64().unwrap_or(0.0) - c["in"].as_f64().unwrap_or(0.0)).max(0.0))
+                .sum();
+            // Vista previa: un poco después del inicio del primer clip cuyo archivo exista.
+            let (preview_path, preview_time) = clips
+                .iter()
+                .find_map(|c| {
+                    let m = media.iter().find(|m| m["id"] == c["mediaId"])?;
+                    let path = m["path"].as_str()?;
+                    if !Path::new(path).is_file() {
+                        return None;
+                    }
+                    let (i, o) = (c["in"].as_f64().unwrap_or(0.0), c["out"].as_f64().unwrap_or(0.0));
+                    Some((path.to_string(), (i + ((o - i) * 0.25).min(3.0)).max(0.0)))
+                })
+                .map(|(p, t)| (Some(p), t))
+                .unwrap_or((None, 0.0));
+            let cover = v["cover"].as_str().filter(|c| Path::new(c).is_file()).map(String::from);
             out.push(ProjectEntry {
                 name: v["name"]
                     .as_str()
                     .map(String::from)
                     .unwrap_or_else(|| p.file_stem().unwrap_or_default().to_string_lossy().to_string()),
-                clips: v["clips"].as_array().map(|a| a.len()).unwrap_or(0),
+                clips: clips.len(),
+                media: media.len(),
                 path: p.to_string_lossy().to_string(),
                 modified,
+                duration,
+                cover,
+                preview_path,
+                preview_time,
+                resolution: v["export"]["resolution"].as_str().unwrap_or("1080p").to_string(),
+                fps: v["export"]["fps"].as_u64().unwrap_or(60) as u32,
+                orientation: v["export"]["orientation"].as_str().unwrap_or("landscape").to_string(),
             });
         }
     }
     out.sort_by(|a, b| b.modified.cmp(&a.modified));
     Ok(out)
+}
+
+/// Mueve un proyecto .clipstudio a la Papelera de reciclaje (recuperable).
+/// Los videos originales y las portadas no se tocan.
+#[tauri::command]
+async fn delete_project(path: String) -> Result<(), String> {
+    blocking(move || {
+        let p = Path::new(&path);
+        if p.extension().map(|e| e != "clipstudio").unwrap_or(true) {
+            return Err("Solo se pueden eliminar archivos de proyecto .clipstudio.".into());
+        }
+        if !p.is_file() {
+            return Err("El proyecto ya no existe.".into());
+        }
+        trash::delete(p).map_err(|e| format!("No se pudo mover a la Papelera: {e}"))
+    })
+    .await
 }
 
 /// Rutas de video recibidas por línea de comandos (menú contextual del Explorador).
@@ -401,7 +511,11 @@ pub fn run() {
         .manage(render::RenderState::default())
         .manage(StartupPaths(Mutex::new(video_args(std::env::args()))))
         .setup(|app| {
+            if let Ok(d) = app.path().app_local_data_dir() {
+                let _ = ffmpeg::TOOLS_DIR.set(d.join("ffmpeg"));
+            }
             let _ = projects_dir_path(app.handle());
+            migrate_old_projects(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -421,7 +535,11 @@ pub fn run() {
             projects_dir,
             new_project_path,
             list_projects,
-            take_startup_paths
+            delete_project,
+            take_startup_paths,
+            default_export_dir,
+            dir_exists,
+            install_ffmpeg
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar ClipStudio");
@@ -435,8 +553,8 @@ mod tests {
     fn args_build() {
         let job = RenderJob {
             clips: vec![
-                RenderClip { path: "a.mp4".into(), start: 1.0, end: 3.5, has_audio: true },
-                RenderClip { path: "b.mp4".into(), start: 0.0, end: 2.0, has_audio: false },
+                RenderClip { path: "a.mp4".into(), start: 1.0, end: 3.5, has_audio: true, transition: None, zoom: None },
+                RenderClip { path: "b.mp4".into(), start: 0.0, end: 2.0, has_audio: false, transition: None, zoom: None },
             ],
             output: "out.mp4".into(),
             width: 1920,
@@ -445,6 +563,7 @@ mod tests {
             codec: "h264".into(),
             quality: 20,
             cover: Some("c.png".into()),
+            metadata: Default::default(),
         };
         let a = build_args(&job).unwrap();
         println!("{}", a.join(" "));

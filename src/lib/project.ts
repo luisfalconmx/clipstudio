@@ -2,7 +2,10 @@ import { api, type MediaInfo } from "./api";
 
 export interface MediaItem extends MediaInfo {
   id: string;
+  /** Fotograma del video (línea de tiempo y encuadre). */
   thumb?: string;
+  /** Portada incrustada en el archivo, si tiene (biblioteca de medios). */
+  poster?: string;
 }
 
 /** Un segmento de un medio colocado en la línea de tiempo. El orden del arreglo es el orden de reproducción. */
@@ -11,6 +14,73 @@ export interface Clip {
   mediaId: string;
   in: number;
   out: number;
+  /** Transición hacia el clip siguiente. */
+  transition?: ClipTransition;
+  /** Zoom / encuadre dentro del cuadro de salida (scale ≥ 1, x/y en [-1, 1]). */
+  zoom?: ClipZoom;
+}
+
+export interface ClipZoom {
+  scale: number;
+  x: number;
+  y: number;
+}
+
+/** Transform CSS equivalente al zoom del render (escala y recorte centrado en x/y). */
+export function zoomTransform(z?: ClipZoom): string | undefined {
+  if (!z || z.scale <= 1.001) return undefined;
+  const k = ((z.scale - 1) / (2 * z.scale)) * 100;
+  return `scale(${z.scale}) translate(${-z.x * k}%, ${-z.y * k}%)`;
+}
+
+export interface ClipTransition {
+  kind: TransitionKind;
+  duration: number;
+}
+
+export type TransitionKind =
+  | "fade"
+  | "fadeblack"
+  | "fadewhite"
+  | "dissolve"
+  | "wipeleft"
+  | "wiperight"
+  | "slideleft"
+  | "slideup"
+  | "circleopen"
+  | "radial"
+  | "pixelize"
+  | "smoothleft";
+
+/** Catálogo de transiciones (nombres del filtro xfade de ffmpeg). */
+export const TRANSITIONS: { kind: TransitionKind; label: string; anim: string }[] = [
+  { kind: "fade", label: "Disolver", anim: "fade" },
+  { kind: "fadeblack", label: "Fundido a negro", anim: "black" },
+  { kind: "fadewhite", label: "Fundido a blanco", anim: "white" },
+  { kind: "dissolve", label: "Granulado", anim: "fade" },
+  { kind: "wipeleft", label: "Barrido ←", anim: "wipeleft" },
+  { kind: "wiperight", label: "Barrido →", anim: "wiperight" },
+  { kind: "slideleft", label: "Deslizar ←", anim: "slideleft" },
+  { kind: "slideup", label: "Deslizar ↑", anim: "slideup" },
+  { kind: "circleopen", label: "Círculo", anim: "circle" },
+  { kind: "radial", label: "Radial", anim: "radial" },
+  { kind: "pixelize", label: "Pixelado", anim: "fade" },
+  { kind: "smoothleft", label: "Suave ←", anim: "wipeleft" },
+];
+
+export const transitionLabel = (k: TransitionKind) => TRANSITIONS.find((t) => t.kind === k)?.label ?? k;
+
+/** Duración efectiva (igual que en el render): máx. 40 % del clip más corto. */
+export function effectiveTransition(a: Clip, b: Clip | undefined): number {
+  if (!a.transition || !b) return 0;
+  return Math.max(0.05, Math.min(a.transition.duration, Math.min(clipLen(a), clipLen(b)) * 0.4));
+}
+
+/** Duración del video exportado (las transiciones solapan clips). */
+export function outputDuration(clips: Clip[]): number {
+  let t = totalDuration(clips);
+  for (let i = 0; i < clips.length - 1; i++) t -= effectiveTransition(clips[i], clips[i + 1]);
+  return Math.max(0, t);
 }
 
 export interface ExportSettings {
@@ -19,6 +89,10 @@ export interface ExportSettings {
   fps: 60 | 120;
   codec: "h264" | "hevc" | "h264_nvenc" | "hevc_nvenc";
   quality: "high" | "medium" | "low";
+  /** Carpeta de exportación elegida (por defecto Videos del usuario). */
+  outputDir?: string;
+  /** Nombre del archivo exportado, sin extensión (por defecto el nombre del proyecto). */
+  fileName?: string;
 }
 
 export interface Project {
@@ -28,6 +102,8 @@ export interface Project {
   clips: Clip[];
   cover: string | null;
   export: ExportSettings;
+  /** Metadata que se escribe en el video exportado (título, descripción…). */
+  metadata?: Record<string, string>;
 }
 
 export const RESOLUTIONS: Record<ExportSettings["resolution"], { label: string; w: number; h: number }> = {
@@ -120,11 +196,22 @@ export function removeRecent(path: string) {
   }
 }
 
-/** Crea y guarda de inmediato un proyecto nuevo (por defecto en Videos\\ClipStudio). */
+/** Crea y guarda de inmediato un proyecto nuevo (por defecto en la carpeta de datos de ClipStudio). */
 export async function createProjectFile(name: string, dir: string | null = null): Promise<{ project: Project; path: string }> {
   const project = newProject(name);
   const path = await api.newProjectPath(name, dir);
   await api.saveText(path, JSON.stringify(project, null, 2));
   pushRecent(path, name);
   return { project, path };
+}
+
+/**
+ * Formato de salida sugerido a partir de un video: orientación según su forma,
+ * resolución según su lado corto y 120 fps solo si el video supera ~90 fps.
+ */
+export function detectExportSettings(m: { width: number; height: number; fps: number }, base: ExportSettings): ExportSettings {
+  const portrait = m.height > m.width;
+  const short = Math.min(m.width, m.height);
+  const resolution: ExportSettings["resolution"] = short >= 2000 ? "2160p" : short >= 1400 ? "1440p" : "1080p";
+  return { ...base, resolution, orientation: portrait ? "portrait" : "landscape", fps: m.fps > 90 ? 120 : 60 };
 }

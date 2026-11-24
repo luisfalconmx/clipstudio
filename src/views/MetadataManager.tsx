@@ -4,6 +4,7 @@ import { ArrowLeft, FileArrowUp, FolderOpen, Video } from "@gravity-ui/icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import MetadataEditor from "../components/meta/MetadataEditor";
+import { AppHeader, DropZone, PageBackdrop } from "../components/ui/Shell";
 import FolderScanner, { type FolderState } from "../components/meta/FolderScanner";
 import { api, baseName, errMsg, VIDEO_EXTS } from "../lib/api";
 
@@ -135,21 +136,37 @@ export default function MetadataManager({ onBack }: { onBack: () => void }) {
   }, [scan]);
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-border px-3 py-2">
-        <Button isIconOnly variant="ghost" size="sm" aria-label="Volver" onPress={onBack}>
-          <ArrowLeft />
-        </Button>
-        <h2 className="font-semibold">Metadata Manager</h2>
-        <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(k as Tab)} className="ml-4">
+    <div className="relative flex h-full flex-col text-white">
+      <PageBackdrop />
+      <AppHeader
+        onBack={onBack}
+        title="Metadata Manager"
+        right={
+          <>
+            {tab === "single" && single && (
+              <Button size="sm" variant="secondary" onPress={pickVideo}>
+                <FileArrowUp />
+                Abrir otro video
+              </Button>
+            )}
+            {tab === "folder" && folderEdit && (
+              <Button size="sm" variant="secondary" onPress={() => setFolderEdit(null)}>
+                <ArrowLeft />
+                Volver al listado
+              </Button>
+            )}
+          </>
+        }
+      >
+        <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(k as Tab)} className="ml-6">
           <Tabs.ListContainer>
             <Tabs.List aria-label="Modo">
-              <Tabs.Tab id="single">
+              <Tabs.Tab id="single" className="whitespace-nowrap">
                 <Video className="mr-1.5 size-4" />
                 Editar un video
                 <Tabs.Indicator />
               </Tabs.Tab>
-              <Tabs.Tab id="folder">
+              <Tabs.Tab id="folder" className="whitespace-nowrap">
                 <FolderOpen className="mr-1.5 size-4" />
                 Revisar carpeta
                 <Tabs.Indicator />
@@ -157,43 +174,29 @@ export default function MetadataManager({ onBack }: { onBack: () => void }) {
             </Tabs.List>
           </Tabs.ListContainer>
         </Tabs>
-        <div className="flex-1" />
-        {tab === "single" && single && (
-          <Button size="sm" variant="secondary" onPress={pickVideo}>
-            <FileArrowUp />
-            Abrir otro video
-          </Button>
-        )}
-        {tab === "folder" && folderEdit && (
-          <Button size="sm" variant="secondary" onPress={() => setFolderEdit(null)}>
-            <ArrowLeft />
-            Volver al listado
-          </Button>
-        )}
-      </header>
+      </AppHeader>
 
-      <div className="min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1">
         {tab === "single" &&
           (single ? (
             <MetadataEditor key={single} path={single} onSaved={(out, ow) => !ow && setSingle(out)} />
           ) : (
-            <div className="flex h-full items-center justify-center p-8">
-              <button
-                onClick={pickVideo}
-                className="flex h-72 w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-border text-muted hover:bg-surface"
-              >
-                <FileArrowUp className="size-10" />
-                <span className="text-lg font-medium text-foreground">Elige o arrastra un video</span>
-                <span className="text-sm">Edita título, portada, descripción, fechas y más (MP4 / M4V)</span>
-              </button>
-            </div>
+            <DropZone
+              icon={<FileArrowUp className="size-9" />}
+              title="Edita la metadata de un video"
+              desc="Título, portada, descripción, fecha, datos de serie y más. Se guarda en segundos, sin volver a renderizar (MP4 / M4V)."
+              cta="Elegir video"
+              onPress={pickVideo}
+            />
           ))}
 
         {tab === "folder" &&
           (folderEdit ? (
             <div className="flex h-full flex-col">
-              <div className="border-b border-border bg-surface px-4 py-1.5 text-xs text-muted">
-                {folder.folder} › <span className="text-foreground">{baseName(folderEdit)}</span>
+              <div className="flex items-center gap-2 border-b border-white/[0.06] bg-black/20 px-4 py-1.5 text-xs text-white/45">
+                <FolderOpen className="size-3.5" />
+                {folder.folder} <span className="text-white/25">›</span>
+                <span className="text-white">{baseName(folderEdit)}</span>
               </div>
               <div className="min-h-0 flex-1">
                 <MetadataEditor key={folderEdit} path={folderEdit} onSaved={refreshItem} />

@@ -1,5 +1,5 @@
 import { Button, Spinner, Tooltip } from "@heroui/react";
-import { FileArrowUp, Plus, TrashBin } from "@gravity-ui/icons";
+import { FileArrowUp, Picture, Plus, TrashBin } from "@gravity-ui/icons";
 import { fileUrl } from "../lib/api";
 import { formatTime, type MediaItem } from "../lib/project";
 
@@ -18,7 +18,9 @@ export default function MediaBin({ media, importing, missing, onImport, onAdd, o
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-3 py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Medios</h3>
+        <span className="text-xs text-white/45">
+          {media.length ? `${media.length} archivo(s) · arrastra a la línea de tiempo` : "Sin medios todavía"}
+        </span>
         <Button size="sm" variant="secondary" onPress={onImport} isPending={importing}>
           {importing ? <Spinner size="sm" color="current" /> : <FileArrowUp />}
           Importar
@@ -28,17 +30,17 @@ export default function MediaBin({ media, importing, missing, onImport, onAdd, o
         {media.length === 0 ? (
           <button
             onClick={onImport}
-            className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-sm text-muted hover:bg-surface-secondary"
+            className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/10 text-sm text-white/50 transition hover:border-red-600/50 hover:bg-red-600/5"
           >
             <FileArrowUp className="size-6" />
             Importa o arrastra videos aquí
           </button>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
             {media.map((m) => (
               <div
                 key={m.id}
-                className="group relative cursor-grab overflow-hidden rounded-xl bg-surface-secondary active:cursor-grabbing"
+                className="group relative cursor-grab overflow-hidden rounded-xl bg-white/[0.04] ring-1 ring-white/[0.06] transition hover:ring-red-600/50 active:cursor-grabbing"
                 onDoubleClick={() => onAdd(m)}
                 onPointerDown={(e) => {
                   if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
@@ -47,7 +49,14 @@ export default function MediaBin({ media, importing, missing, onImport, onAdd, o
                 title={`${m.path}\nArrastra a la línea de tiempo o haz doble clic para agregar`}
               >
                 <div className="relative aspect-video bg-black">
-                  {m.thumb && <img src={fileUrl(m.thumb)} className="h-full w-full object-cover" draggable={false} />}
+                  {(m.poster ?? m.thumb) && (
+                    <img src={fileUrl(m.poster ?? m.thumb!)} className="h-full w-full object-cover" draggable={false} />
+                  )}
+                  {m.poster && (
+                    <span className="absolute left-1 top-1 flex items-center gap-1 rounded bg-black/70 px-1 text-[10px] text-white">
+                      <Picture className="size-3" /> Portada
+                    </span>
+                  )}
                   <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[10px] text-white">
                     {formatTime(m.duration)}
                   </span>

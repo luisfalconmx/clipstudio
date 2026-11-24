@@ -27,8 +27,19 @@ export interface ProjectEntry {
   path: string;
   name: string;
   clips: number;
+  media: number;
   modified: number;
+  duration: number;
+  cover: string | null;
+  previewPath: string | null;
+  previewTime: number;
+  resolution: string;
+  fps: number;
+  orientation: string;
 }
+
+/** true cuando corre dentro de Tauri (no en un navegador normal). */
+export const inTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export type CoverChange = { kind: "keep" } | { kind: "remove" } | { kind: "set"; path: string };
 
@@ -47,11 +58,19 @@ export interface FfmpegStatus {
   version: string | null;
 }
 
+export interface FfmpegSetupProgress {
+  stage: "download" | "verify" | "extract" | "done";
+  downloaded: number;
+  total: number;
+}
+
 export interface RenderClip {
   path: string;
   start: number;
   end: number;
   hasAudio: boolean;
+  transition: { kind: string; duration: number } | null;
+  zoom: { scale: number; x: number; y: number } | null;
 }
 
 export interface RenderJob {
@@ -63,6 +82,7 @@ export interface RenderJob {
   codec: string;
   quality: number;
   cover: string | null;
+  metadata: Record<string, string>;
 }
 
 export interface RenderProgress {
@@ -87,7 +107,12 @@ export const api = {
   ffmpegStatus: () => invoke<FfmpegStatus>("ffmpeg_status"),
   probe: (path: string) => invoke<MediaInfo>("probe_media", { path }),
   thumbnail: (path: string, time: number, width = 320) => invoke<string>("thumbnail", { path, time, width }),
-  captureFrame: (path: string, time: number) => invoke<string>("capture_frame", { path, time }),
+  /** Con `frame`, aplica el mismo encuadre/zoom que el video exportado. */
+  captureFrame: (
+    path: string,
+    time: number,
+    frame: { width: number; height: number; zoom: { scale: number; x: number; y: number } | null } | null = null,
+  ) => invoke<string>("capture_frame", { path, time, frame }),
   readCover: (path: string) => invoke<string | null>("read_cover", { path }),
   writeMetadata: (video: string, tags: Record<string, string>, cover: CoverChange, output: string | null) =>
     invoke<string>("write_metadata", { video, tags, cover, output }),
@@ -100,9 +125,15 @@ export const api = {
   projectsDir: () => invoke<string>("projects_dir"),
   newProjectPath: (name: string, dir: string | null = null) => invoke<string>("new_project_path", { name, dir }),
   listProjects: () => invoke<ProjectEntry[]>("list_projects"),
+  deleteProject: (path: string) => invoke<void>("delete_project", { path }),
   takeStartupPaths: () => invoke<string[]>("take_startup_paths"),
   onOpenAsProject: (cb: (paths: string[]) => void): Promise<UnlistenFn> =>
     listen<string[]>("open-as-project", (e) => cb(e.payload)),
+  installFfmpeg: () => invoke<FfmpegStatus>("install_ffmpeg"),
+  onFfmpegSetup: (cb: (p: FfmpegSetupProgress) => void): Promise<UnlistenFn> =>
+    listen<FfmpegSetupProgress>("ffmpeg-setup", (e) => cb(e.payload)),
+  defaultExportDir: () => invoke<string>("default_export_dir"),
+  dirExists: (path: string) => invoke<boolean>("dir_exists", { path }),
   onRenderProgress: (cb: (p: RenderProgress) => void): Promise<UnlistenFn> =>
     listen<RenderProgress>("render-progress", (e) => cb(e.payload)),
   onRenderDone: (cb: (p: RenderDone) => void): Promise<UnlistenFn> =>

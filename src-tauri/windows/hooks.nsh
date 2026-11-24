@@ -1,5 +1,5 @@
 ; Hooks del instalador NSIS de ClipStudio (instalación por usuario -> HKCU).
-; - Crea la carpeta de proyectos en Videos\ClipStudio
+; - ffmpeg NO va en el instalador: la app lo descarga una sola vez si falta
 ; - Agrega "Abrir como proyecto en ClipStudio" al menú contextual de los videos
 
 !define CS_VERB "ClipStudio.OpenAsProject"
@@ -15,8 +15,6 @@
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
-  SetShellVarContext current
-  CreateDirectory "$VIDEOS\ClipStudio"
   !insertmacro CS_ADD_VERB ".mp4"
   !insertmacro CS_ADD_VERB ".m4v"
   !insertmacro CS_ADD_VERB ".mov"
@@ -35,5 +33,5 @@
   !insertmacro CS_DEL_VERB ".webm"
   !insertmacro CS_DEL_VERB ".avi"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
-  ; La carpeta Videos\ClipStudio NO se borra: contiene los proyectos del usuario.
+  ; Los proyectos (en %APPDATA%) y ffmpeg (en %LOCALAPPDATA%) no se borran.
 !macroend

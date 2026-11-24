@@ -18,6 +18,9 @@ interface Props {
   externalDrag?: { x: number; y: number } | null;
   /** Al soltar el medio: índice de inserción, o null si se soltó fuera. */
   onExternalDrop?: (index: number | null) => void;
+  /** Unión seleccionada (id del clip a la izquierda). */
+  selectedJunction?: string | null;
+  onSelectJunction?: (clipId: string) => void;
 }
 
 const MIN_LEN = 0.1;
@@ -150,7 +153,7 @@ export default function Timeline(p: Props) {
   return (
     <div
       ref={scrollRef}
-      className={`relative h-full overflow-x-auto overflow-y-hidden bg-surface transition ${
+      className={`relative h-full overflow-x-auto overflow-y-hidden transition ${
         extIndex != null ? "ring-2 ring-inset ring-accent" : extActive ? "ring-1 ring-inset ring-accent/40" : ""
       }`}
       onWheel={(e) => {
@@ -162,7 +165,7 @@ export default function Timeline(p: Props) {
       <div className="relative h-full" style={{ width }}>
         {/* Regla */}
         <div
-          className="sticky top-0 z-10 cursor-pointer border-b border-border bg-surface-secondary"
+          className="sticky top-0 z-10 cursor-pointer border-b border-white/[0.06] bg-white/[0.03]"
           style={{ height: HEADER }}
           onPointerDown={(e) => {
             p.onSeek(timeFromClientX(e.clientX));
@@ -195,8 +198,8 @@ export default function Timeline(p: Props) {
             return (
               <div
                 key={clip.id}
-                className={`group absolute top-0 h-full overflow-hidden rounded-lg border-2 bg-accent/30 ${
-                  selected ? "border-warning" : "border-accent/60"
+                className={`group absolute top-0 h-full overflow-hidden rounded-xl border-2 bg-red-600/25 transition-shadow ${
+                  selected ? "border-white shadow-[0_0_0_3px_rgba(231,0,11,0.6),0_10px_30px_-10px_rgba(231,0,11,0.8)]" : "border-red-600/60 hover:border-red-500"
                 } ${moving ? "opacity-40" : ""}`}
                 style={{
                   left: x,
@@ -213,6 +216,9 @@ export default function Timeline(p: Props) {
                 onDoubleClick={(e) => p.onSeek(timeFromClientX(e.clientX))}
               >
                 <div className="pointer-events-none absolute inset-x-0 top-0 truncate bg-black/55 px-2 py-0.5 text-[11px] text-white">
+                  {clip.zoom && clip.zoom.scale > 1.001 && (
+                    <span className="mr-1.5 rounded bg-red-600 px-1 font-semibold">{Math.round(clip.zoom.scale * 100)}%</span>
+                  )}
                   {m?.name ?? "Medio no encontrado"} · {formatTime(clipLen(clip), true)}
                 </div>
                 {/* Manijas de recorte */}
@@ -220,9 +226,9 @@ export default function Timeline(p: Props) {
                   <div
                     key={kind}
                     title="Arrastra para recortar"
-                    className={`absolute top-0 h-full w-2.5 cursor-ew-resize bg-warning/0 transition group-hover:bg-warning/80 ${
+                    className={`absolute top-0 h-full w-2.5 cursor-ew-resize bg-white/0 transition group-hover:bg-white/80 ${
                       kind === "trim-l" ? "left-0" : "right-0"
-                    } ${selected ? "bg-warning/80" : ""}`}
+                    } ${selected ? "bg-white/90" : ""}`}
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       p.onSelect(clip.id);
@@ -242,14 +248,36 @@ export default function Timeline(p: Props) {
             );
           })}
 
+          {/* Uniones entre clips: clic para elegir transición */}
+          {layout.slice(0, -1).map(({ clip, x, w }) => {
+            const has = !!clip.transition;
+            const sel = p.selectedJunction === clip.id;
+            return (
+              <button
+                key={`j-${clip.id}`}
+                title={has ? "Cambiar transición" : "Agregar transición"}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => p.onSelectJunction?.(clip.id)}
+                className={`absolute top-1/2 z-30 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-bold shadow-lg transition ${
+                  has
+                    ? "bg-red-600 text-white ring-2 ring-black/60 hover:scale-110"
+                    : "bg-black/70 text-white/70 opacity-60 ring-1 ring-white/25 hover:scale-110 hover:opacity-100"
+                } ${sel ? "scale-110 ring-2 ring-white" : ""}`}
+                style={{ left: x + w }}
+              >
+                {has ? "⧉" : "+"}
+              </button>
+            );
+          })}
+
           {p.clips.length === 0 && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border-2 border-dashed border-border text-xs text-muted">
+            <div className="pointer-events-none absolute inset-x-3 inset-y-0 flex items-center justify-center rounded-xl border-2 border-dashed border-white/10 text-xs text-white/40">
               Arrastra aquí un medio de la biblioteca
             </div>
           )}
           {shownDrop !== null && (
             <div
-              className="absolute -top-1 z-20 h-[calc(100%+8px)] w-1 rounded bg-warning"
+              className="absolute -top-1 z-20 h-[calc(100%+8px)] w-1 rounded bg-red-500 shadow-[0_0_12px_rgba(231,0,11,0.9)]"
               style={{
                 left: (shownDrop < layout.length ? layout[shownDrop].x : PAD_LEFT + total * p.zoom) - 2,
               }}
@@ -259,10 +287,10 @@ export default function Timeline(p: Props) {
 
         {/* Cabezal */}
         <div
-          className="pointer-events-none absolute top-0 z-20 h-full w-px bg-danger"
+          className="pointer-events-none absolute top-0 z-20 h-full w-0.5 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
           style={{ left: PAD_LEFT + p.playhead * p.zoom }}
         >
-          <div className="absolute -left-1.5 top-0 size-3 rotate-45 bg-danger" />
+          <div className="absolute -left-[5px] top-0 size-3 rotate-45 rounded-sm bg-red-600 shadow-[0_0_10px_rgba(231,0,11,0.9)]" />
         </div>
       </div>
     </div>

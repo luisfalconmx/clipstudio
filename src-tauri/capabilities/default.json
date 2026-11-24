@@ -19,10 +19,10 @@
       "identifier": "opener:allow-open-path",
       "allow": [
         {
-          "path": "$VIDEO/ClipStudio"
+          "path": "$APPDATA"
         },
         {
-          "path": "$VIDEO/ClipStudio/**"
+          "path": "$APPDATA/**"
         }
       ]
     }

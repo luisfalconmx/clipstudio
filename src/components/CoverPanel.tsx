@@ -14,7 +14,6 @@ interface Props {
 export default function CoverPanel({ cover, capturing, canCapture, onCapture, onPickImage, onClear }: Props) {
   return (
     <div className="flex flex-col gap-3 p-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Portada</h3>
       <div className="checker relative aspect-video overflow-hidden rounded-xl border border-border">
         {cover ? (
           <img src={fileUrl(cover)} className="h-full w-full object-contain" draggable={false} />

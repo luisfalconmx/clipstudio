@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import { fileUrl } from "../lib/api";
-import { clipAt, clipStart, totalDuration, type Clip, type MediaItem } from "../lib/project";
+import { clipAt, clipStart, totalDuration, zoomTransform, type Clip, type MediaItem } from "../lib/project";
 
 export interface PreviewHandle {
   /** Devuelve la ruta del medio y el tiempo de origen bajo el cabezal. */
@@ -15,6 +15,10 @@ interface Props {
   aspect: number;
   volume: number;
   muted: boolean;
+  /** Uniones con transición: tiempo del corte, duración y color del fundido. */
+  dips?: { at: number; d: number; color: string }[];
+  /** Permite arrastrar para mover el encuadre del clip actual (si tiene zoom). */
+  onPan?: (clipId: string, x: number, y: number) => void;
   onTime: (t: number) => void;
   onEnded: () => void;
 }
@@ -26,7 +30,7 @@ const EPS = 1 / 120;
  * cambiando de fuente y posición cuando se termina cada clip.
  */
 const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { clips, media, playhead, playing, aspect, volume, muted, onTime, onEnded },
+  { clips, media, playhead, playing, aspect, volume, muted, dips = [], onPan, onTime, onEnded },
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -59,6 +63,8 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     v.volume = Math.max(0, Math.min(1, volume));
     v.muted = muted;
   }, [volume, muted]);
+
+  const current = clipAt(clips, playhead)?.clip;
 
   useImperativeHandle(ref, () => ({ sourceAt: (t) => sourceAt(t) }), [sourceAt]);
 
@@ -180,7 +186,51 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
         className="relative overflow-hidden bg-black shadow-lg"
         style={{ aspectRatio: aspect, width: `min(100cqw, calc(100cqh * ${aspect}))` }}
       >
-        <video ref={videoRef} className="absolute inset-0 h-full w-full object-contain" preload="auto" playsInline />
+        <video
+          ref={videoRef}
+          className="absolute inset-0 h-full w-full object-contain will-change-transform"
+          style={{ transform: zoomTransform(current?.zoom) }}
+          preload="auto"
+          playsInline
+        />
+        {/* Arrastrar para encuadrar cuando el clip tiene zoom */}
+        {onPan && current?.zoom && current.zoom.scale > 1.001 && !playing && (
+          <div
+            className="absolute inset-0 cursor-grab active:cursor-grabbing"
+            title="Arrastra para mover el encuadre"
+            onDoubleClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              const z = current.zoom!;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const sx = e.clientX, sy = e.clientY, x0 = z.x, y0 = z.y;
+              // 1 unidad de x = mitad del excedente del cuadro ampliado
+              const ux = ((z.scale - 1) * rect.width) / 2;
+              const uy = ((z.scale - 1) * rect.height) / 2;
+              const move = (ev: PointerEvent) => {
+                const nx = Math.max(-1, Math.min(1, x0 - (ev.clientX - sx) / ux));
+                const ny = Math.max(-1, Math.min(1, y0 - (ev.clientY - sy) / uy));
+                onPan(current.id, nx, ny);
+              };
+              const up = () => {
+                window.removeEventListener("pointermove", move);
+                window.removeEventListener("pointerup", up);
+              };
+              window.addEventListener("pointermove", move);
+              window.addEventListener("pointerup", up);
+            }}
+          />
+        )}
+        {/* Vista previa aproximada de transiciones: fundido alrededor del corte */}
+        {dips.map((dp) => {
+          const o = Math.max(0, 1 - Math.abs(playhead - dp.at) / (dp.d / 2));
+          return o > 0 ? (
+            <div
+              key={dp.at}
+              className="pointer-events-none absolute inset-0"
+              style={{ background: dp.color, opacity: o * 0.85 }}
+            />
+          ) : null;
+        })}
         {clips.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-white/50">
             Agrega videos a la línea de tiempo

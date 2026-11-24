@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Toast, toast } from "@heroui/react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import ErrorBoundary from "./components/ErrorBoundary";
+import FfmpegSetup from "./components/FfmpegSetup";
 import Home from "./views/Home";
 import Editor from "./views/Editor";
 import MetadataManager from "./views/MetadataManager";
@@ -25,31 +26,39 @@ export default function App() {
     setView({ name: "editor", project, path, importPaths, key: Date.now() });
   };
 
-  // "Abrir como proyecto en ClipStudio" desde el Explorador: al iniciar o con la app ya abierta.
-  // Explorer lanza un proceso por archivo seleccionado: se agrupan en un solo proyecto.
-  useEffect(() => {
-    let pending: string[] = [];
-    let timer: number | undefined;
-    const flush = async () => {
-      const paths = [...new Set(pending)];
-      pending = [];
-      if (!paths.length) return;
-      if (viewRef.current.name === "editor" && editorDirty.current) {
+  /** Crea un proyecto nuevo con estos videos ya en la línea de tiempo y lo abre. */
+  const openVideosAsProject = async (input: string[]) => {
+    const paths = [...new Set(input)];
+    if (!paths.length) return;
+    if (viewRef.current.name === "editor" && editorDirty.current) {
         const ok = await ask("El proyecto actual tiene cambios sin guardar. ¿Abrir el nuevo proyecto de todos modos?", {
           title: "ClipStudio",
           kind: "warning",
           okLabel: "Abrir nuevo",
           cancelLabel: "Cancelar",
         });
-        if (!ok) return;
-      }
-      try {
-        const name = stripExt(baseName(paths[0]));
-        const { project, path } = await createProjectFile(paths.length > 1 ? `${name} y ${paths.length - 1} más` : name);
-        openEditor(project, path, paths);
-      } catch (e) {
-        toast.danger("No se pudo crear el proyecto", { description: errMsg(e) });
-      }
+      if (!ok) return;
+    }
+    try {
+      const name = stripExt(baseName(paths[0]));
+      const { project, path } = await createProjectFile(paths.length > 1 ? `${name} y ${paths.length - 1} más` : name);
+      openEditor(project, path, paths);
+    } catch (e) {
+      toast.danger("No se pudo crear el proyecto", { description: errMsg(e) });
+    }
+  };
+  const openVideosRef = useRef(openVideosAsProject);
+  openVideosRef.current = openVideosAsProject;
+
+  // "Abrir como proyecto en ClipStudio" desde el Explorador: al iniciar o con la app ya abierta.
+  // Explorer lanza un proceso por archivo seleccionado: se agrupan en un solo proyecto.
+  useEffect(() => {
+    let pending: string[] = [];
+    let timer: number | undefined;
+    const flush = () => {
+      const paths = pending;
+      pending = [];
+      openVideosRef.current(paths);
     };
     const enqueue = (paths: string[]) => {
       pending.push(...paths);
@@ -82,18 +91,14 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       <Toast.Provider placement="bottom end" />
-      {ffmpeg && (!ffmpeg.ffmpeg || !ffmpeg.ffprobe) && (
-        <div className="bg-danger px-4 py-2 text-sm text-danger-foreground">
-          No se encontró ffmpeg/ffprobe. Coloca <b>ffmpeg.exe</b> y <b>ffprobe.exe</b> junto a ClipStudio.exe (el instalador
-          ya los incluye).
-        </div>
-      )}
+      {ffmpeg && (!ffmpeg.ffmpeg || !ffmpeg.ffprobe) && <FfmpegSetup onReady={setFfmpeg} />}
       <div className="min-h-0 flex-1">
         <ErrorBoundary resetKey={view.name === "editor" ? view.key : view.name} onHome={() => setView({ name: "home" })}>
         {view.name === "home" && (
           <Home
             ffmpegVersion={ffmpeg?.version ?? null}
             onOpenProject={(project, path) => openEditor(project, path)}
+            onOpenVideos={openVideosAsProject}
             onMetadata={() => setView({ name: "metadata" })}
           />
         )}

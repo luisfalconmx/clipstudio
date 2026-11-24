@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Kbd, Separator, Slider, Tooltip, toast } from "@heroui/react";
 import {
-  ArrowLeft,
   ArrowShapeTurnUpLeft,
   ArrowUpFromSquare,
   Camera,
+  ChevronsLeft,
+  Crop,
+  ChevronsRight,
+  Filmstrip,
   FloppyDisk,
+  Gear,
+  Layers,
   MagnifierMinus,
   MagnifierPlus,
+  Picture,
   Scissors,
+  Tag,
   TrashBin,
 } from "@gravity-ui/icons";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
@@ -16,6 +23,11 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import Preview, { type PreviewHandle } from "../components/Preview";
 import Transport from "../components/Transport";
+import TransitionsPanel from "../components/editor/TransitionsPanel";
+import ProjectMetaPanel from "../components/editor/ProjectMetaPanel";
+import ZoomPanel from "../components/editor/ZoomPanel";
+import ProjectSettingsPanel from "../components/editor/ProjectSettingsPanel";
+import { AppHeader, PageBackdrop, Panel } from "../components/ui/Shell";
 import Timeline from "../components/Timeline";
 import MediaBin from "../components/MediaBin";
 import CoverPanel from "../components/CoverPanel";
@@ -24,10 +36,15 @@ import { api, errMsg, fileUrl, IMAGE_EXTS, joinPath, VIDEO_EXTS } from "../lib/a
 import {
   RESOLUTIONS,
   clipAt,
+  clipLen,
+  detectExportSettings,
+  effectiveTransition,
   pushRecent,
   totalDuration,
   uid,
   type Clip,
+  type ClipTransition,
+  type ClipZoom,
   type MediaItem,
   type Project,
 } from "../lib/project";
@@ -42,6 +59,16 @@ interface Props {
 }
 
 const AUDIO_KEY = "clipstudio.audio";
+
+type SideTab = "media" | "zoom" | "transitions" | "cover" | "meta" | "project";
+const SIDE_TABS: { id: SideTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "media", label: "Medios", icon: Filmstrip },
+  { id: "zoom", label: "Encuadre", icon: Crop },
+  { id: "transitions", label: "Transiciones", icon: Layers },
+  { id: "cover", label: "Portada", icon: Picture },
+  { id: "meta", label: "Metadatos", icon: Tag },
+  { id: "project", label: "Proyecto", icon: Gear },
+];
 function loadAudio(): { volume: number; muted: boolean } {
   try {
     const v = JSON.parse(localStorage.getItem(AUDIO_KEY) ?? "{}");
@@ -68,6 +95,15 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
   const [audio, setAudio] = useState(loadAudio);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [sideTab, setSideTab] = useState<SideTab>("media");
+  const [sideCollapsed, setSideCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("clipstudio.sidebar") === "collapsed";
+    } catch {
+      return false;
+    }
+  });
+  const [junction, setJunction] = useState<string | null>(null);
   // Arrastre de un medio de la biblioteca hacia la línea de tiempo
   const [binDrag, setBinDrag] = useState<{ media: MediaItem; sx: number; sy: number; x: number; y: number; active: boolean } | null>(
     null,
@@ -107,6 +143,7 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
     (async () => {
       const miss = new Set<string>();
       const thumbs: Record<string, string> = {};
+      const posters: Record<string, string> = {};
       for (const m of initial.media) {
         if (!(await api.fileExists(m.path))) {
           miss.add(m.id);
@@ -114,12 +151,18 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
         }
         try {
           thumbs[m.id] = await api.thumbnail(m.path, Math.min(1, m.duration / 2));
+          // Se vuelve a leer: la portada pudo cambiar (p. ej. desde el Metadata Manager)
+          const poster = await api.readCover(m.path).catch(() => null);
+          if (poster) posters[m.id] = poster;
         } catch {
           /* ignorar */
         }
       }
       setMissing(miss);
-      setProject((p) => ({ ...p, media: p.media.map((m) => (thumbs[m.id] ? { ...m, thumb: thumbs[m.id] } : m)) }));
+      setProject((p) => ({
+        ...p,
+        media: p.media.map((m) => ({ ...m, thumb: thumbs[m.id] ?? m.thumb, poster: posters[m.id] })),
+      }));
       if (miss.size) toast.warning(`${miss.size} archivo(s) del proyecto no se encontraron`);
     })();
   }, [initial]);
@@ -144,26 +187,39 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
   const toggleMute = useCallback(() => setAudio((a) => ({ ...a, muted: !a.muted || a.volume === 0, volume: a.volume || 1 })), []);
   const setVolume = useCallback((volume: number) => setAudio({ volume, muted: volume === 0 }), []);
 
-  // Pantalla completa: la ventana pasa a fullscreen y la vista previa ocupa todo.
+  // Pantalla completa SOLO del video (Fullscreen API sobre el reproductor).
+  // La ventana también pasa a pantalla completa para que el video cubra el monitor.
+  const videoWrapRef = useRef<HTMLDivElement>(null);
+  const fullscreenRef = useRef(fullscreen);
+  fullscreenRef.current = fullscreen;
   const toggleFullscreen = useCallback(async (force?: boolean) => {
-    const next = force ?? !fullscreenRef.current;
-    setFullscreen(next);
+    const el = videoWrapRef.current;
+    if (!el) return;
+    const next = force ?? !document.fullscreenElement;
     try {
-      await getCurrentWindow().setFullscreen(next);
+      if (next && !document.fullscreenElement) {
+        await el.requestFullscreen({ navigationUI: "hide" });
+        await getCurrentWindow().setFullscreen(true).catch(() => {});
+      } else if (!next && document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
     } catch {
       /* ignorar */
     }
   }, []);
-  const fullscreenRef = useRef(fullscreen);
-  fullscreenRef.current = fullscreen;
-  useEffect(
-    () => () => {
-      getCurrentWindow()
-        .setFullscreen(false)
-        .catch(() => {});
-    },
-    [],
-  );
+  useEffect(() => {
+    const onChange = () => {
+      const on = document.fullscreenElement != null && document.fullscreenElement === videoWrapRef.current;
+      setFullscreen(on);
+      if (!on) getCurrentWindow().setFullscreen(false).catch(() => {});
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      getCurrentWindow().setFullscreen(false).catch(() => {});
+    };
+  }, []);
 
   // Ocultar controles en pantalla completa tras 2.5 s sin mover el mouse
   const hideTimer = useRef<number | undefined>(undefined);
@@ -201,20 +257,24 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
           } catch {
             /* sin miniatura */
           }
-          added.push({ ...info, id: uid(), thumb });
+          const poster = info.coverStream != null ? ((await api.readCover(p).catch(() => null)) ?? undefined) : undefined;
+          added.push({ ...info, id: uid(), thumb, poster });
         } catch (e) {
           toast.danger(`No se pudo importar ${p.split(/[\\/]/).pop()}`, { description: errMsg(e) });
         }
       }
       setImporting(false);
-      if (!added.length) return;
+      if (!added.length) return added;
       update((pr) => ({
         ...pr,
+        // Primer video del proyecto: el formato de salida se ajusta a él
+        export: pr.media.length === 0 ? detectExportSettings(added[0], pr.export) : pr.export,
         media: [...pr.media, ...added],
         clips: addToTimeline
           ? [...pr.clips, ...added.map((m) => ({ id: uid(), mediaId: m.id, in: 0, out: m.duration }))]
           : pr.clips,
       }));
+      return added;
     },
     [update],
   );
@@ -222,7 +282,22 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
   useEffect(() => {
     if (!importPaths?.length || didImport.current) return;
     didImport.current = true;
-    importPathsImpl(importPaths, true).then(() => setSaveAfterImport(true));
+    importPathsImpl(importPaths, true).then(async (added) => {
+      // Si el video ya trae portada, usarla como portada del proyecto
+      const withCover = added.find((m) => m.coverStream != null);
+      if (withCover) {
+        try {
+          const cover = await api.readCover(withCover.path);
+          if (cover) {
+            update((p) => (p.cover ? p : { ...p, cover }), false);
+            toast("Se usó la portada del video como portada del proyecto");
+          }
+        } catch {
+          /* sin portada */
+        }
+      }
+      setSaveAfterImport(true);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -332,6 +407,56 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
     if (history.current.length > MAX_HISTORY) history.current.shift();
   }, []);
 
+  // ---------- Transiciones y metadata ----------
+  const setTransition = useCallback(
+    (clipId: string, t: ClipTransition | undefined) =>
+      update((p) => ({ ...p, clips: p.clips.map((c) => (c.id === clipId ? { ...c, transition: t } : c)) })),
+    [update],
+  );
+  const setAllTransitions = useCallback(
+    (t: ClipTransition | undefined) =>
+      update((p) => ({ ...p, clips: p.clips.map((c, i) => (i < p.clips.length - 1 ? { ...c, transition: t } : c)) })),
+    [update],
+  );
+  const setClipZoom = useCallback(
+    (clipId: string, zoom: ClipZoom | undefined) =>
+      update((p) => ({ ...p, clips: p.clips.map((c) => (c.id === clipId ? { ...c, zoom } : c)) }), false),
+    [update],
+  );
+  const lastZoomEdit = useRef(0);
+  // Clip del panel Encuadre: el seleccionado o, si no hay, el que está bajo el cabezal
+  const zoomClipIndex = (() => {
+    const i = project.clips.findIndex((c) => c.id === selectedId);
+    return i >= 0 ? i : (clipAt(project.clips, playhead)?.index ?? -1);
+  })();
+  const setMeta = useCallback(
+    (key: string, value: string) => update((p) => ({ ...p, metadata: { ...(p.metadata ?? {}), [key]: value } }), false),
+    [update],
+  );
+  const openSide = (tab: SideTab) => {
+    setSideTab(tab);
+    setSideCollapsed(false);
+  };
+  useEffect(() => {
+    try {
+      localStorage.setItem("clipstudio.sidebar", sideCollapsed ? "collapsed" : "open");
+    } catch {
+      /* ignorar */
+    }
+  }, [sideCollapsed]);
+
+  // Puntos de transición para la vista previa aproximada
+  const dips = useMemo(() => {
+    const out: { at: number; d: number; color: string }[] = [];
+    let acc = 0;
+    project.clips.forEach((c, i) => {
+      acc += clipLen(c);
+      const d = effectiveTransition(c, project.clips[i + 1]);
+      if (d > 0) out.push({ at: acc, d, color: c.transition?.kind === "fadewhite" ? "#fff" : "#000" });
+    });
+    return out;
+  }, [project.clips]);
+
   // ---------- Portada ----------
   async function captureCover() {
     const src = previewRef.current?.sourceAt(playhead);
@@ -339,7 +464,11 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
     setPlaying(false);
     setCapturing(true);
     try {
-      const img = await api.captureFrame(src.path, src.time);
+      // Mismo encuadre y zoom que el video exportado
+      const r = RESOLUTIONS[project.export.resolution];
+      const [fw, fh] = project.export.orientation === "portrait" ? [r.h, r.w] : [r.w, r.h];
+      const zoom = clipAt(project.clips, playhead)?.clip.zoom ?? null;
+      const img = await api.captureFrame(src.path, src.time, { width: fw, height: fh, zoom });
       update((p) => ({ ...p, cover: img }));
       toast.success("Fotograma capturado como portada");
     } catch (e) {
@@ -460,55 +589,170 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col text-white">
+      <PageBackdrop />
       {/* Barra superior */}
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Button isIconOnly variant="ghost" size="sm" aria-label="Volver al inicio" onPress={close}>
-          <ArrowLeft />
-        </Button>
-        <input
-          className="min-w-0 max-w-xs rounded-lg bg-transparent px-2 py-1 font-semibold outline-none hover:bg-surface focus:bg-surface"
-          value={project.name}
-          onChange={(e) => update((p) => ({ ...p, name: e.target.value }), false)}
-        />
-        {dirty && <span className="text-xs text-muted">sin guardar</span>}
-        <div className="flex-1" />
-        <Tooltip delay={300}>
-          <Button size="sm" variant="ghost" onPress={undo} isDisabled={!history.current.length}>
-            <ArrowShapeTurnUpLeft />
-            Deshacer
-          </Button>
-          {tip("Deshacer", "Ctrl+Z")}
-        </Tooltip>
-        <Tooltip delay={300}>
-          <Button size="sm" variant="secondary" onPress={() => saveProject()}>
-            <FloppyDisk />
-            Guardar
-          </Button>
-          {tip("Guardar proyecto", "Ctrl+S")}
-        </Tooltip>
-        <Button size="sm" onPress={() => setExportOpen(true)} isDisabled={!project.clips.length}>
-          <ArrowUpFromSquare />
-          Exportar
-        </Button>
-      </header>
-
-      {/* Zona superior: medios · vista previa · portada */}
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-72 shrink-0 border-r border-border">
-          <MediaBin
-            media={project.media}
-            importing={importing}
-            missing={missing}
-            onImport={importDialog}
-            onAdd={addToTimeline}
-            onRemove={removeMedia}
-            onDragStart={(m, e) => setBinDrag({ media: m, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, active: false })}
+      <AppHeader
+        onBack={close}
+        title={
+          <input
+            className="min-w-0 max-w-sm rounded-lg bg-transparent px-1.5 py-0.5 -ml-1.5 text-base font-semibold outline-none transition hover:bg-white/5 focus:bg-white/10 focus:ring-1 focus:ring-accent/60"
+            value={project.name}
+            onChange={(e) => update((p) => ({ ...p, name: e.target.value }), false)}
+            aria-label="Nombre del proyecto"
           />
-        </aside>
-        <main className="flex min-w-0 flex-1 flex-col">
+        }
+        subtitle={
+          dirty ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">
+              <span className="size-1.5 rounded-full bg-amber-400" /> Sin guardar
+            </span>
+          ) : path ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">
+              <span className="size-1.5 rounded-full bg-emerald-400" /> Guardado
+            </span>
+          ) : null
+        }
+        right={
+          <div className="flex items-center gap-2">
+            <Tooltip delay={300}>
+              <Button size="sm" variant="ghost" onPress={undo} isDisabled={!history.current.length}>
+                <ArrowShapeTurnUpLeft />
+                Deshacer
+              </Button>
+              {tip("Deshacer", "Ctrl+Z")}
+            </Tooltip>
+            <Tooltip delay={300}>
+              <Button size="sm" variant="secondary" onPress={() => saveProject()}>
+                <FloppyDisk />
+                Guardar
+              </Button>
+              {tip("Guardar proyecto", "Ctrl+S")}
+            </Tooltip>
+            <Button
+              size="sm"
+              onPress={() => setExportOpen(true)}
+              isDisabled={!project.clips.length}
+              className="shadow-[0_0_24px_rgba(231,0,11,0.45)]"
+            >
+              <ArrowUpFromSquare />
+              Exportar
+            </Button>
+          </div>
+        }
+      />
+
+      {/* Zona superior: barra lateral (40%) · vista previa (60%) */}
+      <div className="relative flex min-h-0 flex-1 gap-3 p-3 pb-0">
+        <Panel className={`flex shrink-0 transition-[width] duration-300 ${sideCollapsed ? "w-14" : "w-[40%] min-w-[380px]"}`}>
+          {/* Riel de pestañas */}
+          <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] bg-black/60 py-2" aria-label="Paneles">
+            {SIDE_TABS.map((t) => {
+              const active = !sideCollapsed && sideTab === t.id;
+              return (
+                <Tooltip key={t.id} delay={300}>
+                  <button
+                    aria-label={t.label}
+                    onClick={() => (active ? setSideCollapsed(true) : openSide(t.id))}
+                    className={`relative flex size-10 items-center justify-center rounded-xl transition ${
+                      active ? "bg-red-600 text-white shadow-[0_0_20px_-4px_rgba(231,0,11,0.8)]" : "text-white/55 hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                  >
+                    <t.icon className="size-5" />
+                    {t.id === "transitions" && dips.length > 0 && (
+                      <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-white text-[9px] font-bold text-black">
+                        {dips.length}
+                      </span>
+                    )}
+                  </button>
+                  <Tooltip.Content placement="right">{t.label}</Tooltip.Content>
+                </Tooltip>
+              );
+            })}
+            <div className="flex-1" />
+            <Tooltip delay={300}>
+              <button
+                aria-label={sideCollapsed ? "Expandir panel" : "Contraer panel"}
+                onClick={() => setSideCollapsed((v) => !v)}
+                className="flex size-10 items-center justify-center rounded-xl text-white/45 transition hover:bg-white/[0.07] hover:text-white"
+              >
+                {sideCollapsed ? <ChevronsRight className="size-5" /> : <ChevronsLeft className="size-5" />}
+              </button>
+              <Tooltip.Content placement="right">{sideCollapsed ? "Expandir panel" : "Contraer panel"}</Tooltip.Content>
+            </Tooltip>
+          </nav>
+
+          {/* Contenido de la pestaña */}
+          {!sideCollapsed && (
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex items-center gap-2 border-b border-white/[0.06] bg-black/25 px-4 py-2.5">
+                <h2 className="text-sm font-semibold">{SIDE_TABS.find((t) => t.id === sideTab)?.label}</h2>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {sideTab === "media" && (
+                  <MediaBin
+                    media={project.media}
+                    importing={importing}
+                    missing={missing}
+                    onImport={importDialog}
+                    onAdd={addToTimeline}
+                    onRemove={removeMedia}
+                    onDragStart={(m, e) =>
+                      setBinDrag({ media: m, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, active: false })
+                    }
+                  />
+                )}
+                {sideTab === "zoom" && (
+                  <ZoomPanel
+                    clip={project.clips[zoomClipIndex] ?? null}
+                    index={zoomClipIndex}
+                    media={media}
+                    aspect={aspect}
+                    onChange={(id, z) => {
+                      // Un solo paso de deshacer por ráfaga de ajustes
+                      if (Date.now() - lastZoomEdit.current > 800) beginEdit();
+                      lastZoomEdit.current = Date.now();
+                      setClipZoom(id, z);
+                    }}
+                  />
+                )}
+                {sideTab === "transitions" && (
+                  <TransitionsPanel
+                    clips={project.clips}
+                    media={media}
+                    selected={junction}
+                    onSelect={setJunction}
+                    onChange={setTransition}
+                    onApplyAll={setAllTransitions}
+                  />
+                )}
+                {sideTab === "cover" && (
+                  <CoverPanel
+                    cover={project.cover}
+                    capturing={capturing}
+                    canCapture={project.clips.length > 0}
+                    onCapture={captureCover}
+                    onPickImage={pickCover}
+                    onClear={() => update((p) => ({ ...p, cover: null }))}
+                  />
+                )}
+                {sideTab === "meta" && <ProjectMetaPanel metadata={project.metadata ?? {}} onChange={setMeta} />}
+                {sideTab === "project" && (
+                  <ProjectSettingsPanel
+                    project={project}
+                    firstMedia={project.clips[0] ? (media.get(project.clips[0].mediaId) ?? null) : (project.media[0] ?? null)}
+                    onChange={(ex) => update((p) => ({ ...p, export: ex }))}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        <Panel className="flex min-w-0 flex-1 flex-col">
           <div
-            className={fullscreen ? "fixed inset-0 z-40 bg-black" : "min-h-0 flex-1"}
+            ref={videoWrapRef}
+            className="relative min-h-0 flex-1 bg-black"
             style={fullscreen && !controlsVisible ? { cursor: "none" } : undefined}
             onPointerMove={fullscreen ? pokeControls : undefined}
             onDoubleClick={() => toggleFullscreen()}
@@ -522,6 +766,11 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
               aspect={aspect}
               volume={audio.volume}
               muted={audio.muted}
+              dips={dips}
+              onPan={(id, x, y) => {
+                const c = project.clips.find((cl) => cl.id === id);
+                if (c?.zoom) setClipZoom(id, { ...c.zoom, x, y });
+              }}
               onTime={setPlayhead}
               onEnded={() => setPlaying(false)}
             />
@@ -550,7 +799,7 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
               </div>
             )}
           </div>
-          <div className="border-t border-border px-3 py-2">
+          <div className="border-t border-white/[0.06] bg-black/20 px-3 py-2">
             <Transport
               playhead={playhead}
               total={total}
@@ -566,21 +815,12 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
               onToggleFullscreen={() => toggleFullscreen(true)}
             />
           </div>
-        </main>
-        <aside className="w-72 shrink-0 overflow-y-auto border-l border-border">
-          <CoverPanel
-            cover={project.cover}
-            capturing={capturing}
-            canCapture={project.clips.length > 0}
-            onCapture={captureCover}
-            onPickImage={pickCover}
-            onClear={() => update((p) => ({ ...p, cover: null }))}
-          />
-        </aside>
+        </Panel>
       </div>
 
-      {/* Herramientas de la línea de tiempo */}
-      <div className="flex items-center gap-1 border-y border-border px-3 py-1.5">
+      {/* Línea de tiempo */}
+      <Panel className="relative m-3 flex shrink-0 flex-col">
+      <div className="flex items-center gap-1 border-b border-white/[0.06] px-3 py-1.5">
         <Tooltip delay={300}>
           <Button size="sm" variant="ghost" onPress={splitAtPlayhead} isDisabled={!project.clips.length}>
             <Scissors />
@@ -603,6 +843,7 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
           {tip("Usar el fotograma actual como portada")}
         </Tooltip>
         <Separator orientation="vertical" className="mx-2 h-5" />
+        <span className="section-title mr-2">Línea de tiempo</span>
         <span className="text-xs text-muted">
           Arrastra medios a la pista · bordes para recortar · clip para reordenar.
         </span>
@@ -636,18 +877,26 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
           onBeginEdit={beginEdit}
           onTrim={trim}
           onReorder={reorder}
+          selectedJunction={sideTab === "transitions" && !sideCollapsed ? junction : null}
+          onSelectJunction={(id) => {
+            setJunction(id);
+            openSide("transitions");
+          }}
           externalDrag={binDrag?.active ? { x: binDrag.x, y: binDrag.y } : null}
           onExternalDrop={onExternalDrop}
         />
       </div>
+      </Panel>
 
       {binDrag?.active && (
         <div
-          className="pointer-events-none fixed z-50 w-40 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border-2 border-accent bg-surface shadow-2xl"
+          className="pointer-events-none fixed z-50 w-40 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border-2 border-red-600 bg-[#141416] shadow-[0_20px_50px_-10px_rgba(231,0,11,0.6)]"
           style={{ left: binDrag.x, top: binDrag.y }}
         >
           <div className="aspect-video bg-black">
-            {binDrag.media.thumb && <img src={fileUrl(binDrag.media.thumb)} className="h-full w-full object-cover" />}
+            {(binDrag.media.poster ?? binDrag.media.thumb) && (
+              <img src={fileUrl(binDrag.media.poster ?? binDrag.media.thumb!)} className="h-full w-full object-cover" />
+            )}
           </div>
           <p className="truncate px-2 py-1 text-[11px]">{binDrag.media.name}</p>
         </div>
@@ -659,6 +908,10 @@ export default function Editor({ initial, initialPath, importPaths, onDirtyChang
         project={project}
         media={media}
         onSettings={(s) => update((p) => ({ ...p, export: s }), false)}
+        onEditSettings={() => {
+          setExportOpen(false);
+          openSide("project");
+        }}
       />
     </div>
   );

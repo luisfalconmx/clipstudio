@@ -178,7 +178,7 @@ export default function MetadataEditor({ path, onSaved }: Props) {
     <div className="flex h-full min-h-0">
       {/* 70%: video y selección de fotograma */}
       <section className="flex min-w-0 basis-[70%] flex-col gap-3 p-4">
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-black">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-black shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.07]">
           <video
             ref={videoRef}
             src={fileUrl(info.path)}
@@ -211,7 +211,7 @@ export default function MetadataEditor({ path, onSaved }: Props) {
       </section>
 
       {/* 30%: panel de metadata */}
-      <aside className="flex min-w-[340px] basis-[30%] flex-col border-l border-border bg-surface/40">
+      <aside className="glass m-3 ml-0 flex min-w-[340px] basis-[30%] flex-col overflow-hidden rounded-2xl">
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {!editable && (
             <div className="mb-3 rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">
@@ -222,7 +222,7 @@ export default function MetadataEditor({ path, onSaved }: Props) {
           {/* Portada */}
           <div className="mb-4 flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Portada</h3>
+              <h3 className="section-title">Portada</h3>
               {coverMode === "set" && <Chip size="sm" color="accent">Nueva</Chip>}
               {coverMode === "remove" && <Chip size="sm" color="danger">Se quitará</Chip>}
               {coverMode === "keep" && (
@@ -269,13 +269,13 @@ export default function MetadataEditor({ path, onSaved }: Props) {
             <Tabs.ListContainer>
               <Tabs.List aria-label="Grupos de metadata">
                 {META_GROUPS.map((g) => (
-                  <Tabs.Tab key={g.id} id={g.id}>
+                  <Tabs.Tab key={g.id} id={g.id} className="whitespace-nowrap">
                     <g.icon className="mr-1 size-3.5" />
                     {g.label}
                     <Tabs.Indicator />
                   </Tabs.Tab>
                 ))}
-                <Tabs.Tab id="info">
+                <Tabs.Tab id="info" className="whitespace-nowrap">
                   <ListUl className="mr-1 size-3.5" />
                   Info
                   <Tabs.Indicator />
@@ -368,7 +368,7 @@ export default function MetadataEditor({ path, onSaved }: Props) {
         {/* Guardado */}
         <footer className="flex flex-col gap-3 border-t border-border p-4">
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Al guardar</span>
+            <span className="section-title">Al guardar</span>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Modo de guardado">
               <SaveOption
                 active={saveMode === "overwrite"}
@@ -463,7 +463,7 @@ function SaveOption(p: {
       disabled={p.disabled}
       onClick={p.onSelect}
       className={`flex items-start gap-2 rounded-xl border-2 p-2.5 text-left transition disabled:opacity-50 ${
-        p.active ? "border-accent bg-accent/10" : "border-border hover:bg-surface-secondary"
+        p.active ? "border-red-600 bg-red-600/10 shadow-[0_0_24px_-6px_rgba(231,0,11,0.6)]" : "border-white/10 hover:bg-white/5"
       }`}
     >
       <span className={`mt-0.5 ${p.active ? "text-accent" : "text-muted"}`}>{p.icon}</span>
