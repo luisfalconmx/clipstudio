@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a0507"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff3b45"/>
+      <stop offset="1" stop-color="#b00008"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="210" fill="none" stroke="#e7000b" stroke-opacity=".55" stroke-width="10"/>
+  <!-- perforaciones de película -->
+  <g fill="#ffffff" fill-opacity=".85">
+    <rect x="214" y="176" width="70" height="46" rx="12"/><rect x="334" y="176" width="70" height="46" rx="12"/>
+    <rect x="454" y="176" width="70" height="46" rx="12"/><rect x="574" y="176" width="70" height="46" rx="12"/>
+    <rect x="694" y="176" width="70" height="46" rx="12"/>
+    <rect x="214" y="802" width="70" height="46" rx="12"/><rect x="334" y="802" width="70" height="46" rx="12"/>
+    <rect x="454" y="802" width="70" height="46" rx="12"/><rect x="574" y="802" width="70" height="46" rx="12"/>
+    <rect x="694" y="802" width="70" height="46" rx="12"/>
+  </g>
+  <!-- play redondeado -->
+  <path d="M420 342 Q392 326 392 358 L392 666 Q392 698 420 682 L676 532 Q704 512 676 492 Z" fill="url(#red)"/>
+</svg>

@@ -3,6 +3,7 @@ import { Toast, toast } from "@heroui/react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import ErrorBoundary from "./components/ErrorBoundary";
 import FfmpegSetup from "./components/FfmpegSetup";
+import UpdateNotifier from "./components/UpdateNotifier";
 import Home from "./views/Home";
 import Editor from "./views/Editor";
 import MetadataManager from "./views/MetadataManager";
@@ -91,6 +92,17 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       <Toast.Provider placement="bottom end" />
+      <UpdateNotifier
+        confirmLeave={async () =>
+          !(viewRef.current.name === "editor" && editorDirty.current) ||
+          (await ask("El proyecto tiene cambios sin guardar. ClipStudio se reiniciará para actualizarse. ¿Continuar?", {
+            title: "ClipStudio",
+            kind: "warning",
+            okLabel: "Actualizar",
+            cancelLabel: "Cancelar",
+          }))
+        }
+      />
       {ffmpeg && (!ffmpeg.ffmpeg || !ffmpeg.ffprobe) && <FfmpegSetup onReady={setFfmpeg} />}
       <div className="min-h-0 flex-1">
         <ErrorBoundary resetKey={view.name === "editor" ? view.key : view.name} onHome={() => setView({ name: "home" })}>

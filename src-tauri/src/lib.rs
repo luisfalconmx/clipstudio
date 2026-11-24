@@ -506,6 +506,8 @@ pub fn run() {
                 let _ = app.emit("open-as-project", paths);
             }
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(render::RenderState::default())

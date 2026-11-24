@@ -25,6 +25,8 @@
           "path": "$APPDATA/**"
         }
       ]
-    }
+    },
+    "updater:default",
+    "process:default"
   ]
 }

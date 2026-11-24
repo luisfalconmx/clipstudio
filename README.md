@@ -62,6 +62,26 @@ La compilación cruzada usa `cargo-xwin`, que descarga el SDK de Windows y lo gu
 
 El instalador NSIS ejecuta [src-tauri/windows/hooks.nsh](src-tauri/windows/hooks.nsh), que registra el verbo del menú contextual en `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell` (sin permisos de administrador). Al desinstalar se quita el verbo; tus proyectos y ffmpeg se conservan.
 
+## Actualizaciones automáticas y releases
+
+La app busca actualizaciones firmadas al iniciar (y cada 6 h) en
+`https://github.com/luisfalconmx/clipstudio/releases/latest/download/latest.json`. Si hay una versión nueva, muestra el botón
+**"Nueva actualización disponible"**, que descarga el instalador, verifica su firma, lo instala y reinicia la app.
+
+- La **llave privada** de firma está fuera del repo, en `~/.tauri/clipstudio-updater.key` (la pública está en `tauri.conf.json`).
+  **Respáldala**: si se pierde, las instalaciones existentes no podrán recibir actualizaciones.
+- Para publicar una versión:
+  1. Escribe las notas en `release/NOTES.md`.
+  2. `pnpm version minor` (o `patch`/`major`), que crea el commit y el tag `vX.Y.Z` y sincroniza `Cargo.toml`.
+  3. `./scripts/build-windows.sh`: genera el instalador firmado, `ClipStudio-setup.exe` y `latest.json` en `release/`.
+  4. `git push --follow-tags` y `gh release create vX.Y.Z release/ClipStudio_X.Y.Z_x64-setup.exe release/ClipStudio-setup.exe release/latest.json …`.
+
+## Landing page
+
+`landing/` es una página estática (HTML + three.js por CDN) que se publica en GitHub Pages con
+[.github/workflows/pages.yml](.github/workflows/pages.yml): https://luisfalconmx.github.io/clipstudio/. El botón de descarga
+apunta a `releases/latest/download/ClipStudio-setup.exe`, así que siempre entrega la versión más reciente.
+
 ## Estructura
 
 ```
@@ -76,6 +96,7 @@ src/
 src-tauri/src/
   lib.rs                  Comandos Tauri
   ffmpeg.rs               Localizar/ejecutar ffmpeg, probe, fotogramas, portada
+  (src/components/UpdateNotifier.tsx  aviso y descarga de actualizaciones)
   setup_ffmpeg.rs         Descarga única de ffmpeg con verificación SHA-256
   args.rs                 Construcción del filtro de render (trim + scale/pad + fps + concat)
   render.rs               Proceso de render con progreso y cancelación

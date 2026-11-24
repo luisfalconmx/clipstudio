@@ -1,17 +1,12 @@
 import type { ReactNode } from "react";
 import { Button } from "@heroui/react";
-import { ArrowLeft, Play } from "@gravity-ui/icons";
+import { ArrowLeft } from "@gravity-ui/icons";
+import logo from "../../assets/logo.svg";
 
-/** Logo de ClipStudio (cuadro naranja con play). */
+/** Logo de ClipStudio (tira de película con play rojo). */
 export function LogoMark({ size = "md" }: { size?: "sm" | "md" }) {
-  const s = size === "sm" ? "size-8 rounded-lg" : "size-10 rounded-xl";
-  return (
-    <div
-      className={`${s} flex shrink-0 items-center justify-center bg-gradient-to-br from-red-500 via-red-600 to-red-900 text-white shadow-[0_0_24px_rgba(231,0,11,0.55)]`}
-    >
-      <Play className={size === "sm" ? "size-4 translate-x-px" : "size-5 translate-x-px"} />
-    </div>
-  );
+  const s = size === "sm" ? "size-8" : "size-10";
+  return <img src={logo} alt="" className={`${s} shrink-0 drop-shadow-[0_0_18px_rgba(231,0,11,0.45)]`} draggable={false} />;
 }
 
 /** Fondo de las vistas internas: mismo lenguaje que el inicio, sin 3D. */
